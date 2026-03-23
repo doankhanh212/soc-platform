@@ -180,9 +180,38 @@
         <option value="7">Cao+</option><option value="12">Nghiêm trọng</option>
       </select>
     </div>
+    <!-- Thanh chọn hàng loạt -->
+    <div id="bulk-toolbar"
+      style="display:none;align-items:center;gap:10px;padding:10px 16px;
+             background:rgba(0,255,65,.05);border:1px solid rgba(0,255,65,.2);
+             border-radius:var(--r);margin:8px 12px 10px">
+      <span id="bulk-count"
+        style="font-size:12px;color:var(--green);font-family:'Share Tech Mono',monospace">
+        0 alert được chọn
+      </span>
+      <button onclick="window.bulkCreateCases()"
+        style="padding:5px 14px;background:var(--green3);border:1px solid var(--green);
+               border-radius:var(--r);color:var(--green);font-size:11px;
+               font-weight:700;cursor:pointer">
+        ✚ Tạo case hàng loạt
+      </button>
+      <button onclick="window.clearBulkSelect()"
+        style="padding:5px 14px;background:var(--bg-card);border:1px solid var(--border);
+               border-radius:var(--r);color:var(--muted);font-size:11px;cursor:pointer">
+        Bỏ chọn tất cả
+      </button>
+      <span style="margin-left:auto;font-size:11px;color:var(--muted)">
+        Chỉ áp dụng cho Medium/Low — Critical tự động tạo case
+      </span>
+    </div>
     <div style="overflow-x:auto" id="tbl-wazuh">
       <table class="soc-table">
         <thead><tr>
+          <th style="width:36px">
+            <input type="checkbox" id="check-all"
+              onchange="window.toggleAllAlerts(this.checked)"
+              style="cursor:pointer">
+          </th>
           <th>Thời gian</th><th>Máy chủ</th><th>Quy tắc</th>
           <th>Mức độ</th><th>IP nguồn</th><th>MITRE</th><th>Hành động</th>
         </tr></thead>
@@ -219,11 +248,11 @@
   <!-- Stats 5 ô -->
   <div class="cases-stats">
     <div class="cs-stat">
-      <div class="cs-stat-num red" id="cs-stat-esc">0</div>
+      <div class="cs-stat-num" style="color:var(--red)" id="cs-stat-esc">0</div>
       <div class="cs-stat-lbl">Leo thang</div>
     </div>
     <div class="cs-stat">
-      <div class="cs-stat-num amber" id="cs-stat-prog">0</div>
+      <div class="cs-stat-num" style="color:var(--amber)" id="cs-stat-prog">0</div>
       <div class="cs-stat-lbl">Đang xử lý</div>
     </div>
     <div class="cs-stat">
@@ -231,7 +260,7 @@
       <div class="cs-stat-lbl">Mới</div>
     </div>
     <div class="cs-stat">
-      <div class="cs-stat-num green" id="cs-stat-done">0</div>
+      <div class="cs-stat-num" style="color:var(--green)" id="cs-stat-done">0</div>
       <div class="cs-stat-lbl">Đã giải quyết</div>
     </div>
     <div class="cs-stat">
@@ -278,8 +307,8 @@
       </div>
       <div id="case-detail-body">
         <div class="no-case-selected">
-          <div class="no-case-icon">📋</div>
-          <div class="no-case-hint">
+          <div style="font-size:32px;margin-bottom:10px;opacity:.4">📋</div>
+          <div style="font-size:12px;line-height:1.8;color:var(--muted)">
             Nhấn vào một vụ việc bên trái<br>để xem chi tiết và thực hiện phân loại
           </div>
         </div>
@@ -314,7 +343,7 @@
           <th>Chiến thuật</th>
           <th>Số lần phát hiện</th>
           <th>Tần suất</th>
-          <th>Alert gần nhất</th>
+          <th></th>
         </tr></thead>
         <tbody>
           <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">

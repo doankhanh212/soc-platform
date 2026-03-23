@@ -160,45 +160,46 @@ async def get_top_attacking_ips(size: int = 10) -> list[dict]:
 
 
 async def get_top_ips_with_geo(size: int = 12) -> list[dict]:
-    """Top attacking IPs WITH GeoLocation — for map with real coordinates."""
     body = {
-        "size": size * 3,   # fetch more, dedupe by IP
-        "sort": [{"@timestamp": {"order": "desc"}}],
-        "query": {
-            "bool": {
-                "must": [
-                    {"range": {"@timestamp": {"gte": "now-24h"}}},
-                    {"exists": {"field": "data.src_ip"}},
-                    {"exists": {"field": "GeoLocation.latitude"}},
-                ]
+        "size": 0,
+        "query": {"range": {"@timestamp": {"gte": "now-24h"}}},
+        "aggs": {
+            "top_ips": {
+                "terms": {"field": "data.src_ip", "size": size},
+                "aggs": {
+                    "geo": {
+                        "top_hits": {
+                            "size": 1,
+                            "_source": [
+                                "GeoLocation.country_name",
+                                "GeoLocation.city_name",
+                                "GeoLocation.latitude",
+                                "GeoLocation.longitude",
+                            ]
+                        }
+                    }
+                }
             }
-        },
-        "_source": [
-            "data.src_ip",
-            "GeoLocation.latitude", "GeoLocation.longitude",
-            "GeoLocation.country_name", "GeoLocation.city_name",
-        ],
+        }
     }
     result = await _search(cfg.index_wazuh_alerts, body)
-    seen = {}
-    for h in result.get("hits", {}).get("hits", []):
-        s = h["_source"]
-        ip = s.get("data", {}).get("src_ip")
-        if not ip or ip in seen:
+    buckets = result["aggregations"]["top_ips"]["buckets"]
+    out = []
+    for b in buckets:
+        ip = b["key"]
+        if ip in ("", "127.0.0.1", "::1", "0.0.0.0"):
             continue
-        geo = s.get("GeoLocation", {})
-        lat = geo.get("latitude")
-        lon = geo.get("longitude")
-        if lat and lon:
-            seen[ip] = {
-                "ip":      ip,
-                "lat":     float(lat),
-                "lon":     float(lon),
-                "country": geo.get("country_name", ""),
-                "city":    geo.get("city_name", ""),
-                "count":   1,
-            }
-    return list(seen.values())[:size]
+        hits = b["geo"]["hits"]["hits"]
+        geo = hits[0]["_source"].get("GeoLocation", {}) if hits else {}
+        out.append({
+            "ip":      ip,
+            "count":   b["doc_count"],
+            "country": geo.get("country_name", ""),
+            "city":    geo.get("city_name", ""),
+            "lat":     geo.get("latitude", 0),
+            "lon":     geo.get("longitude", 0),
+        })
+    return out
 
 
 async def get_alerts_over_time(hours: int = 24) -> list[dict]:

@@ -56,14 +56,14 @@ function _renderPag(containerId, cur, total, fnName){
   const pages = Math.ceil(total / PAGE_SIZE);
   if(pages <= 1){ el.innerHTML=''; return; }
 
-  let h = `<button class="pag-btn" onclick="${fnName}(${cur-1})" ${cur===1?'disabled':''}>‹</button>`;
+  let h = `<button class="pag-btn" onclick="${fnName}(${cur-1})" ${cur===1?'disabled':''}>‹ Trước</button>`;
 
   _pagRange(cur, pages).forEach(p=>{
     if(p==='…') h += '<span class="pag-ellipsis">…</span>';
     else h += `<button class="pag-btn ${p===cur?'active':''}" onclick="${fnName}(${p})">${p}</button>`;
   });
 
-  h += `<button class="pag-btn" onclick="${fnName}(${cur+1})" ${cur===pages?'disabled':''}>›</button>`;
+  h += `<button class="pag-btn" onclick="${fnName}(${cur+1})" ${cur===pages?'disabled':''}>Sau ›</button>`;
   h += `<span class="pag-info">Trang ${cur}/${pages} · ${total} cảnh báo</span>`;
   el.innerHTML = h;
 }
@@ -73,6 +73,7 @@ window.renderWazuhPage = function(page){
   const slice = _wazuhAll.slice((_wazuhPage - 1) * PAGE_SIZE, _wazuhPage * PAGE_SIZE);
   renderAlertsTable(slice);
   _renderPag('wazuh-pag', _wazuhPage, _wazuhAll.length, 'renderWazuhPage');
+  document.getElementById('tbl-wazuh')?.scrollIntoView({behavior:'smooth',block:'start'});
 };
 
 window.renderSuriPage = function(page){
@@ -80,6 +81,7 @@ window.renderSuriPage = function(page){
   const slice = _suriAll.slice((_suriPage - 1) * PAGE_SIZE, _suriPage * PAGE_SIZE);
   renderSuriTable(slice);
   _renderPag('suri-pag', _suriPage, _suriAll.length, 'renderSuriPage');
+  document.getElementById('tbl-suri')?.scrollIntoView({behavior:'smooth',block:'start'});
 };
 
 /* ── Navigation ─────────────────────────────────── */
@@ -194,11 +196,23 @@ function renderAlertsTable(alerts){
   const tbody = document.querySelector('#tbl-wazuh tbody');
   if(!tbody) return;
   if(!alerts.length){
-    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Không có cảnh báo trong 24h qua</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:24px">Không có cảnh báo trong 24h qua</td></tr>';
     return;
   }
-  tbody.innerHTML = alerts.map(a=>`
-    <tr>
+  tbody.innerHTML = alerts.map(a=>{
+    const level = parseInt(a?.rule?.level || 0);
+    const isCritical = level >= 12;
+    const alertEncoded = encodeURIComponent(JSON.stringify(a));
+    const checkboxCell = isCritical 
+      ? `<td style="width:36px;text-align:center;font-size:11px;color:var(--muted)">⚡</td>`
+      : `<td style="width:36px;padding:9px 8px">
+           <input type="checkbox" class="alert-row-check"
+             data-alert="${alertEncoded}"
+             onchange="window.toggleAlertSelect(this, this.dataset.alert)"
+             style="cursor:pointer">
+         </td>`;
+    return `<tr>
+      ${checkboxCell}
       <td class="mono">${fmtTime(a['@timestamp'])}</td>
       <td class="agent-name">${a?.agent?.name||'—'}</td>
       <td title="${a?.rule?.description||''}" style="color:var(--text)">${(a?.rule?.description||'—').slice(0,50)}</td>
@@ -206,7 +220,8 @@ function renderAlertsTable(alerts){
       <td class="src">${a?.data?.src_ip||'—'}</td>
       <td class="mono" style="color:var(--purple)">${a?.rule?.mitre?.id?.[0]||'—'}</td>
       <td><button class="btn-create-case" onclick='window.createCaseFromAlert(${JSON.stringify(a)})'>+ Vụ việc</button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 /* ── Suricata table ─────────────────────────────── */
@@ -247,20 +262,28 @@ function renderTopIPs(ips){
     </div>`).join('');
 }
 
+const COUNTRY_FLAGS = {
+  'United States':'🇺🇸','China':'🇨🇳','Russia':'🇷🇺','Germany':'🇩🇪','France':'🇫🇷',
+  'United Kingdom':'🇬🇧','Brazil':'🇧🇷','India':'🇮🇳','Netherlands':'🇳🇱','Singapore':'🇸🇬',
+  'South Korea':'🇰🇷','Japan':'🇯🇵','Australia':'🇦🇺','Canada':'🇨🇦','Ukraine':'🇺🇦',
+  'Iran':'🇮🇷','North Korea':'🇰🇵','Vietnam':'🇻🇳','Indonesia':'🇮🇩','Thailand':'🇹🇭',
+  'Hong Kong':'🇭🇰','Taiwan':'🇹🇼','Pakistan':'🇵🇰','Bangladesh':'🇧🇩','Turkey':'🇹🇷',
+};
+
 function renderGeoTable(geoIPs, topIPs) {
   const el = document.getElementById('geo-attack-table');
   if(!el) return;
 
-  // Dùng geoIPs nếu có, fallback topIPs
   let data = [];
   if(geoIPs && geoIPs.length) {
     data = geoIPs.map(g=>({
       country: g.country||'Unknown',
+      city: g.city||'',
       ip: g.ip,
       count: g.count,
     }));
   } else if(topIPs && topIPs.length) {
-    data = topIPs.map(t=>({country:'—', ip:t.ip, count:t.count}));
+    data = topIPs.map(t=>({country:'—', city:'', ip:t.ip, count:t.count}));
   }
 
   if(!data.length){
@@ -271,19 +294,32 @@ function renderGeoTable(geoIPs, topIPs) {
   data.sort((a,b)=>b.count-a.count);
   const max = data[0].count || 1;
 
-  el.innerHTML = data.slice(0,12).map((d,i)=>{
+  let h = `<div class="geo-row" style="border-bottom:1px solid var(--border);margin-bottom:4px;padding-bottom:6px">
+    <span class="geo-rank" style="color:var(--muted);font-size:10px">#</span>
+    <span class="geo-country" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em">Quốc gia</span>
+    <span class="geo-ip" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em">IP nguồn</span>
+    <span style="flex:1"></span>
+    <span class="geo-count" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em">Số lần</span>
+  </div>`;
+
+  h += data.slice(0,12).map((d,i)=>{
     const pct = (d.count/max*100).toFixed(1);
-    const barClass = d.count > 500 ? 'danger' : d.count > 100 ? 'warn' : 'ok';
+    const barColor = d.count > 500 ? 'var(--red)' : d.count > 100 ? 'var(--amber)' : 'var(--green)';
+    const countColor = d.count > 500 ? 'var(--red)' : d.count > 100 ? 'var(--amber)' : 'var(--text)';
+    const flag = COUNTRY_FLAGS[d.country] || '🌐';
+    const label = d.country !== '—' ? `${flag} ${d.country}${d.city?' · '+d.city:''}` : '—';
     return `<div class="geo-row">
       <span class="geo-rank">${i+1}</span>
-      <span class="geo-country">${d.country}</span>
+      <span class="geo-country" title="${d.country}${d.city?' · '+d.city:''}">${label}</span>
       <span class="geo-ip">${d.ip}</span>
       <div class="geo-bar-wrap">
-        <div class="geo-bar ${barClass}" style="width:${pct}%"></div>
+        <div class="geo-bar" style="width:${pct}%;background:${barColor}"></div>
       </div>
-      <span class="geo-count">${d.count.toLocaleString()}</span>
+      <span class="geo-count" style="color:${countColor}">${d.count.toLocaleString()}</span>
     </div>`;
   }).join('');
+
+  el.innerHTML = h;
 }
 
 /* ── MITRE heatmap ──────────────────────────────── */
@@ -302,24 +338,38 @@ function renderMitre(techniques){
   }).join('');
 }
 
-function renderMitreDetailTable(techniques, tactics){
-  const tbody = document.querySelector('#mitre-detail-tbl tbody');
-  if(!tbody || !techniques.length) return;
+const MITRE_TACTIC_MAP = {
+  'T1110':'Credential Access','T1078':'Defense Evasion','T1548':'Privilege Escalation',
+  'T1190':'Initial Access','T1059':'Execution','T1046':'Discovery',
+  'T1105':'Command and Control','T1565':'Impact','T1098':'Persistence',
+  'T1041':'Command and Control','T1003':'Credential Access','T1055':'Defense Evasion',
+  'T1562':'Defense Evasion','T1070':'Defense Evasion','T1021':'Lateral Movement',
+  'T1086':'Execution','T1071':'Command and Control','T1102':'Command and Control',
+  'T1486':'Impact','T1082':'Discovery','T1057':'Discovery','T1018':'Discovery',
+};
 
-  // Build tactic map từ techniques (dùng prefix T1xxx)
-  const tacticMap = {
-    'T1110':'Credential Access','T1078':'Defense Evasion',
-    'T1548':'Privilege Escalation','T1190':'Initial Access',
-    'T1059':'Execution','T1046':'Discovery','T1105':'Command and Control',
-    'T1565':'Impact','T1098':'Persistence','T1041':'Command and Control',
-  };
+function renderMitreDetailTable(techniques){
+  const tbody = document.querySelector('#mitre-detail-tbl tbody');
+  if(!tbody) return;
+  if(!techniques.length){
+    tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">Chưa có dữ liệu kỹ thuật MITRE</td></tr>';
+    return;
+  }
 
   const max = Math.max(...techniques.map(t=>t.count),1);
   tbody.innerHTML = techniques.map(t=>{
     const pct = (t.count/max*100).toFixed(0);
-    const tactic = tacticMap[t.id]||tacticMap[t.id?.split('.')[0]]||'—';
+    const tactic = MITRE_TACTIC_MAP[t.id] || MITRE_TACTIC_MAP[t.id?.split('.')[0]] || '—';
+    const techId = t.id?.replace('.','/') || t.id || '';
+    const url = `https://attack.mitre.org/techniques/${techId}`;
     return `<tr>
-      <td style="font-family:monospace;color:var(--cyan)">${t.id}</td>
+      <td style="font-family:monospace;color:var(--cyan)">
+        <a href="${url}" target="_blank" rel="noopener noreferrer"
+          style="color:var(--cyan);text-decoration:none">${t.id}</a>
+        <button onclick="navigator.clipboard?.writeText('${t.id}')"
+          style="background:none;border:none;color:var(--muted);cursor:pointer;
+                 font-size:10px;padding:0 4px;opacity:.6" title="Sao chép">📋</button>
+      </td>
       <td><span class="mitre-tactic-badge">${tactic}</span></td>
       <td style="font-family:monospace;color:var(--text)">${t.count.toLocaleString()}</td>
       <td>
@@ -330,27 +380,27 @@ function renderMitreDetailTable(techniques, tactics){
           <span style="font-size:10px;color:var(--muted);min-width:30px">${pct}%</span>
         </div>
       </td>
-      <td style="font-size:11px;color:var(--muted)">—</td>
+      <td></td>
     </tr>`;
   }).join('');
 }
 
 /* ── Block IP ───────────────────────────────────── */
 window.blockIP = async function(ip){
+  if(!ip || typeof ip !== 'string') return;
   if(!confirm(`Chặn IP ${ip} bằng iptables?\n\nLưu ý: cần AI_BLOCK_AUTO=true trong .env backend`)) return;
   try{
-    const res = await fetch(`/api/response/block-ip?ip=${ip}`,{method:'POST'});
+    const res = await fetch(`/api/response/block-ip?ip=${encodeURIComponent(ip)}`,{method:'POST'});
     const data = await res.json();
     if(!res.ok){
       if(res.status===403){
-        window.toast('Chặn thất bại: AI_BLOCK_AUTO=false trong .env — cần bật lên true rồi restart service','err',6000);
+        window.toast('Chặn thất bại: AI_BLOCK_AUTO=false trong .env — bật lên true và restart','err',7000);
       } else {
-        window.toast('Lỗi chặn IP: '+JSON.stringify(data),'err');
+        window.toast('Lỗi chặn IP: '+(data.detail||JSON.stringify(data)),'err');
       }
       return;
     }
-    window.toast(`✓ Đã chặn IP ${ip} thành công`,'ok');
-    // Refresh top IPs list
+    window.toast(`✓ Đã chặn IP ${ip}`,'ok');
     window.socApi.topIPs(10).then(ips=>renderTopIPs(ips)).catch(()=>{});
   }catch(e){
     window.toast('Lỗi kết nối: '+e.message,'err');
@@ -380,6 +430,15 @@ document.addEventListener('soc:data', e=>{
   }
   if(d.top_rules) window.socCharts.updateRulesBarDirect(d.top_rules);
   if(d.suricata_sigs) window.socCharts.updateSuricataBarDirect(d.suricata_sigs);
+  if(window.casesApp && d.case_stats){
+    const cs = d.case_stats;
+    const el = id => document.getElementById(id);
+    if(el('cs-stat-esc'))    el('cs-stat-esc').textContent    = cs.escalated||0;
+    if(el('cs-stat-prog'))   el('cs-stat-prog').textContent   = cs.in_progress||0;
+    if(el('cs-stat-new'))    el('cs-stat-new').textContent    = cs.new||0;
+    if(el('cs-stat-done'))   el('cs-stat-done').textContent   = cs.resolved||0;
+    if(el('cs-stat-triaged'))el('cs-stat-triaged').textContent= cs.triaged_today||0;
+  }
 });
 
 /* ── Manual refresh ─────────────────────────────── */
@@ -408,9 +467,10 @@ async function fullRefresh(){
     _wazuhAll = wazuh; _wazuhPage = 1; window.renderWazuhPage(1);
     _suriAll  = suri;  _suriPage = 1;  window.renderSuriPage(1);
     renderMitre(mitre.techniques||[]);
-    renderMitreDetailTable(mitre.techniques||[], mitre.tactics||[]);
+    renderMitreDetailTable(mitre.techniques||[]);
     renderStream(wazuh);
     loadCases();
+    window.casesApp?.loadAll?.();
     toast('Đã làm mới','ok',1500);
   } catch(e){ toast('Lỗi làm mới: '+e.message,'err'); }
 }
@@ -423,9 +483,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   document.querySelector('[data-page="mitre"]')?.addEventListener('click', async ()=>{
     try{
-      const mitre = await window.socApi.mitre();
-      window.socCharts.updateTacticsBar(mitre.tactics||[]);
-      renderMitreDetailTable(mitre.techniques||[], mitre.tactics||[]);
+      const m = await window.socApi.mitre();
+      window.socCharts.updateTacticsBar(m.tactics||[]);
+      renderMitreDetailTable(m.techniques || []);
     } catch(_){}
   });
 
@@ -555,8 +615,14 @@ function renderList(){
   const wrap = document.getElementById('cases-list-full');
   if(!wrap) return;
   if(!_filtered.length){
-    wrap.innerHTML=`<div style="padding:40px;text-align:center;color:var(--muted);font-size:12px">
-      Không tìm thấy vụ việc nào</div>`;
+    wrap.innerHTML=`<div style="padding:40px;text-align:center;color:var(--muted)">
+      <div style="font-size:28px;opacity:.3;margin-bottom:10px">🗂</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Chưa có vụ việc nào</div>
+      <div style="font-size:11px;line-height:1.8;max-width:260px;margin:0 auto">
+        Vụ việc được tạo tự động từ Wazuh alert,<br>
+        hoặc nhấn <b style="color:var(--green)">+ Tạo vụ việc</b> để thêm thủ công.
+      </div>
+    </div>`;
     return;
   }
   wrap.innerHTML = _filtered.map(c=>{
@@ -607,11 +673,11 @@ function renderDetailPanel(c){
   const tabs = `
   <div class="detail-tabs">
     <div class="detail-tab ${_activeDetailTab==='overview'?'active':''}"
-      onclick="window.casesApp.detailTab('overview','${c.case_id}')">Tổng quan</div>
+      onclick="window.casesApp.tab('overview','${c.case_id}')">Tổng quan</div>
     <div class="detail-tab ${_activeDetailTab==='triage'?'active':''}"
-      onclick="window.casesApp.detailTab('triage','${c.case_id}')">Phân loại</div>
+      onclick="window.casesApp.tab('triage','${c.case_id}')">Phân loại</div>
     <div class="detail-tab ${_activeDetailTab==='timeline'?'active':''}"
-      onclick="window.casesApp.detailTab('timeline','${c.case_id}')">Lịch sử</div>
+      onclick="window.casesApp.tab('timeline','${c.case_id}')">Lịch sử</div>
   </div>`;
 
   let content = '';
@@ -649,7 +715,7 @@ function renderDetailPanel(c){
           🛡 Phân loại</div>
         <div class="ca-btn ca-assign" onclick="window.casesApp.assign('${c.case_id}')">
           👤 Giao việc</div>
-        <div class="ca-btn ca-close" onclick="window.casesApp.closeCase('${c.case_id}')">
+        <div class="ca-btn ca-close" onclick="window.casesApp.close('${c.case_id}')">
           ✕ Đóng</div>
       </div>`;
   }
@@ -762,9 +828,9 @@ window.casesApp = {
   filter: filterBy,
   search: searchCases,
   select: selectCase,
-  detailTab: switchDetailTab,
+  tab: switchDetailTab,
   assign: assignCase,
-  closeCase,
+  close: closeCase,
 };
 
 // Override cũ nếu có
@@ -783,3 +849,96 @@ window.triageClose = function(){
 };
 
 })();
+
+/* ═════════════════════════════════════════════════════════════════
+   BULK SELECT + MANUAL CASE CREATION
+   ═════════════════════════════════════════════════════════════════ */
+let _selectedAlerts = new Map(); // alertId → alertObject
+
+function _updateBulkToolbar() {
+  const count = _selectedAlerts.size;
+  const toolbar = document.getElementById('bulk-toolbar');
+  const countEl = document.getElementById('bulk-count');
+  if (!toolbar) return;
+  toolbar.style.display = count > 0 ? 'flex' : 'none';
+  if (countEl) countEl.textContent = `${count} alert được chọn`;
+}
+
+window.toggleAlertSelect = function(checkbox, alertJson) {
+  const alert = JSON.parse(decodeURIComponent(alertJson));
+  const id = alert['@timestamp'] + (alert.rule?.id || '');
+  if (checkbox.checked) {
+    _selectedAlerts.set(id, alert);
+  } else {
+    _selectedAlerts.delete(id);
+    document.getElementById('check-all').checked = false;
+  }
+  _updateBulkToolbar();
+};
+
+window.toggleAllAlerts = function(checked) {
+  _selectedAlerts.clear();
+  if (checked) {
+    document.querySelectorAll('.alert-row-check').forEach(cb => {
+      cb.checked = true;
+      const alert = JSON.parse(decodeURIComponent(cb.dataset.alert));
+      const id = alert['@timestamp'] + (alert.rule?.id || '');
+      _selectedAlerts.set(id, alert);
+    });
+  } else {
+    document.querySelectorAll('.alert-row-check').forEach(cb => cb.checked = false);
+  }
+  _updateBulkToolbar();
+};
+
+window.clearBulkSelect = function() {
+  _selectedAlerts.clear();
+  document.querySelectorAll('.alert-row-check').forEach(cb => cb.checked = false);
+  const ca = document.getElementById('check-all');
+  if (ca) ca.checked = false;
+  _updateBulkToolbar();
+};
+
+window.bulkCreateCases = async function() {
+  const alerts = [..._selectedAlerts.values()];
+  if (!alerts.length) return;
+  if (!confirm(`Tạo ${alerts.length} vụ việc từ các alert đã chọn?`)) return;
+  try {
+    const res = await fetch('/api/rules/bulk-create-cases', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({alerts}),
+    });
+    const data = await res.json();
+    window.toast(`✓ Đã tạo ${data.created} vụ việc`, 'ok');
+    window.clearBulkSelect();
+    window.casesApp?.loadAll?.();
+  } catch(e) {
+    window.toast('Lỗi tạo case: ' + e.message, 'err');
+  }
+};
+
+/* ═════════════════════════════════════════════════════════════════
+   RULE ENGINE STATUS WIDGET
+   ═════════════════════════════════════════════════════════════════ */
+async function loadRuleStatus() {
+  try {
+    const rules = await fetch('/api/rules/').then(r => r.json());
+    const el = document.getElementById('rule-engine-status');
+    if (el) el.textContent = `${rules.length} rules đang hoạt động`;
+  } catch(e) {}
+}
+
+window.triggerRuleEngine = async function() {
+  try {
+    await fetch('/api/rules/run-now', {method:'POST'});
+    window.toast('Rule engine đã chạy — kiểm tra tab Vụ việc', 'ok');
+    setTimeout(() => window.casesApp?.loadAll?.(), 2000);
+  } catch(e) {
+    window.toast('Lỗi: ' + e.message, 'err');
+  }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadRuleStatus();
+});
