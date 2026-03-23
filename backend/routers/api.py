@@ -71,29 +71,46 @@ async def suricata_sigs():
 @response_router.post("/block-ip")
 async def block_ip(ip: str = Query(...)):
     if not re.match(r"^\d{1,3}(\.\d{1,3}){3}$", ip):
-        raise HTTPException(400, "Invalid IP")
-    if not cfg.ai_block_auto:
-        raise HTTPException(403, "AI_BLOCK_AUTO=false — enable in .env")
+        raise HTTPException(400, "IP không hợp lệ")
     try:
-        r = subprocess.run(
+        result = subprocess.run(
             ["iptables", "-I", "INPUT", "-s", ip, "-j", "DROP"],
-            capture_output=True, text=True, timeout=5)
-        if r.returncode != 0:
-            raise HTTPException(500, r.stderr)
-        return {"status": "blocked", "ip": ip}
+            capture_output=True, text=True, timeout=5
+        )
+        if result.returncode != 0:
+            raise HTTPException(500, f"iptables lỗi: {result.stderr}")
+
+        # Ghi log vào OpenSearch nếu có
+        try:
+            import datetime
+            from services.opensearch import _client
+            async with _client() as c:
+                await c.post(f"/{cfg.index_ai_anomaly}/_doc", json={
+                    "@timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+                    "src_ip": ip,
+                    "action": "manual_block",
+                    "blocked_by": "analyst",
+                    "risk_score": 1.0,
+                    "should_block": True,
+                    "triggered_models": ["manual"],
+                })
+        except Exception:
+            pass  # Log thất bại không ảnh hưởng việc block
+
+        return {"status": "blocked", "ip": ip, "message": f"Đã chặn {ip} thành công"}
     except FileNotFoundError:
-        raise HTTPException(500, "iptables not found")
+        raise HTTPException(500, "iptables không tìm thấy trên server")
 
 @response_router.post("/unblock-ip")
 async def unblock_ip(ip: str = Query(...)):
     if not re.match(r"^\d{1,3}(\.\d{1,3}){3}$", ip):
-        raise HTTPException(400, "Invalid IP")
+        raise HTTPException(400, "IP không hợp lệ")
     try:
         r = subprocess.run(
             ["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"],
             capture_output=True, text=True, timeout=5)
         if r.returncode != 0:
-            raise HTTPException(500, r.stderr)
-        return {"status": "unblocked", "ip": ip}
+            raise HTTPException(500, f"iptables lỗi: {r.stderr}")
+        return {"status": "unblocked", "ip": ip, "message": f"Đã bỏ chặn {ip}"}
     except FileNotFoundError:
-        raise HTTPException(500, "iptables not found")
+        raise HTTPException(500, "iptables không tìm thấy trên server")

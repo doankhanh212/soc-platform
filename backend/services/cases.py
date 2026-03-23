@@ -101,9 +101,14 @@ def update_case_status(case_id: str, status: str, assignee: str = None) -> dict:
     now = time.time()
     closed = now if status in ("Resolved", "Closed") else None
     with _conn() as c:
-        c.execute("""UPDATE cases SET status=?, assignee=COALESCE(?,assignee),
-                     updated_at=?, closed_at=? WHERE case_id=?""",
-                  (status, assignee, now, closed, case_id))
+        c.execute("""
+            UPDATE cases
+            SET status=?,
+                assignee=COALESCE(?, assignee),
+                updated_at=?,
+                closed_at=CASE WHEN ? IN ('Resolved','Closed') THEN ? ELSE closed_at END
+            WHERE case_id=?
+        """, (status, assignee, now, status, closed, case_id))
     return get_case(case_id)
 
 def submit_triage(case_id: str, classification: str, reasons: list,
@@ -111,7 +116,9 @@ def submit_triage(case_id: str, classification: str, reasons: list,
                   analysis: str, recommendation: str,
                   analyst: str = "analyst") -> dict:
     now = time.time()
-    new_status = "Resolved" if classification in ("True Positive", "False Positive") else "In Progress"
+    # Mọi classification đều đóng case
+    new_status = "Resolved"
+    closed_at  = now
     with _conn() as c:
         c.execute("""
             INSERT INTO triage_log (case_id,classification,reasons,mitre_mapping,
@@ -119,8 +126,10 @@ def submit_triage(case_id: str, classification: str, reasons: list,
             VALUES (?,?,?,?,?,?,?,?,?)
         """, (case_id, classification, json.dumps(reasons), json.dumps(mitre_mapping),
               impact_level, analysis, recommendation, analyst, now))
-        c.execute("UPDATE cases SET status=?, updated_at=? WHERE case_id=?",
-                  (new_status, now, case_id))
+        c.execute(
+            "UPDATE cases SET status=?, closed_at=?, updated_at=? WHERE case_id=?",
+            (new_status, closed_at, now, case_id)
+        )
     return get_case(case_id)
 
 def get_triage_log(case_id: str) -> list[dict]:

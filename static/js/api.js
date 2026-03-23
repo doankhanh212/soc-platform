@@ -21,6 +21,8 @@ window.socApi={
   suricataAlerts:  (n=100)  => _get(`/api/alerts/suricata?size=${n}`),
   aiAlerts:        (n=50)   => _get(`/api/alerts/ai?size=${n}`),
   blockIP:         (ip)     => _post('/api/response/block-ip',null,{ip}),
+  geoStats:        (n=12)    => _get(`/api/stats/top-ips-geo?size=${n}`),
+  getOpenCases:    (limit=10) => _get(`/api/cases/open?limit=${limit}`),
   // Cases
   caseStats:       ()       => _get('/api/cases/stats'),
   getCases:        (status,limit=50) => _get(`/api/cases/${status?'?status='+status:''}${limit?'?limit='+limit:''}`),

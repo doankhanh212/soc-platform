@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from services.cases import (
     create_case, get_case, list_cases,
@@ -33,6 +33,26 @@ class TriageSubmit(BaseModel):
 @router.get("/stats")
 def get_stats():
     return case_stats()
+
+@router.get("/open")
+def get_open_cases(limit: int = Query(10, ge=1, le=50)):
+    """Chỉ trả về cases chưa đóng (New + In Progress + Escalated)
+    — dùng cho panel 'Vụ việc đang mở' trên dashboard."""
+    from services.cases import _conn, _row_to_dict
+    with _conn() as c:
+        rows = c.execute("""
+            SELECT * FROM cases
+            WHERE status IN ('New', 'In Progress', 'Escalated')
+            ORDER BY
+              CASE status
+                WHEN 'Escalated'   THEN 1
+                WHEN 'In Progress' THEN 2
+                WHEN 'New'         THEN 3
+              END,
+              created_at DESC
+            LIMIT ?
+        """, (limit,)).fetchall()
+        return [_row_to_dict(r) for r in rows]
 
 @router.get("/")
 def get_cases(status: str = None, limit: int = 50):

@@ -147,10 +147,15 @@ async def run_once():
                 if rule["match"](alert):
                     level = int(alert.get("rule", {}).get("level", 0))
                     mitre = alert.get("rule", {}).get("mitre", {})
+                    title_parts = [alert.get("rule", {}).get("description", "Auto case")]
+                    dest_ip = alert.get("data", {}).get("dest_ip", "")
+                    if dest_ip:
+                        title_parts.append(f"→ {dest_ip}")
                     create_case(
-                        title=alert.get("rule", {}).get("description", "Auto case"),
+                        title=" ".join(title_parts),
                         severity=rule["severity"],
-                        src_ip=alert.get("data", {}).get("src_ip", ""),
+                        src_ip=(alert.get("data", {}).get("src_ip", "")
+                                or alert.get("agent", {}).get("ip", "")),
                         agent=alert.get("agent", {}).get("name", ""),
                         rule_id=str(alert.get("rule", {}).get("id", "")),
                         rule_desc=alert.get("rule", {}).get("description", ""),

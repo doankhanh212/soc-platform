@@ -111,7 +111,7 @@ function renderKPIs(kpis, caseStats){
 /* ── Cases panel ────────────────────────────────── */
 async function loadCases(){
   try{
-    const cases = await window.socApi.getCases(null, 8);
+    const cases = await fetch('/api/cases/open?limit=8').then(r=>r.json());
     const wrap = document.getElementById('cases-list');
     if(!wrap) return;
     if(!cases.length){
@@ -562,6 +562,7 @@ async function loadAll(){
   try{
     const res = await fetch('/api/cases/?limit=200');
     _allCases = await res.json();
+    if (!_activeFilter) _activeFilter = 'New';
     _applyFilter();
     _updateStats();
   }catch(e){ window.toast('Lỗi tải vụ việc: '+e.message,'err'); }
@@ -694,7 +695,9 @@ function renderDetailPanel(c){
         <span class="info-val ${sevColor}">${c.severity}</span></div>
       <div class="info-row"><span class="info-key">IP nguồn</span>
         <span class="info-val ip">${c.src_ip||'—'}</span></div>
-      <div class="info-row"><span class="info-key">Máy chủ</span>
+      <div class="info-row"><span class="info-key">IP đích</span>
+        <span class="info-val ip">${c.dest_ip||'103.98.152.187 (SOC Server)'}</span></div>
+      <div class="info-row"><span class="info-key">Máy chủ agent</span>
         <span class="info-val ok">${c.agent||'—'}</span></div>
       <div class="info-row"><span class="info-key">Rule ID</span>
         <span class="info-val">${c.rule_id||'—'}</span></div>
@@ -814,6 +817,13 @@ async function closeCase(caseId){
       body: JSON.stringify({status:'Closed'})
     });
     await loadAll();
+    _selectedCaseId = null;
+    document.getElementById('case-detail-body').innerHTML = `
+      <div class="no-case-selected">
+        <div style="font-size:32px;margin-bottom:10px;opacity:.4">🔒</div>
+        <div style="font-size:12px;color:var(--muted)">Vụ việc đã đóng.</div>
+      </div>`;
+    document.getElementById('detail-case-id').textContent = 'Chọn vụ việc để xem chi tiết';
     window.toast(`Đã đóng ${caseId}`,'ok');
   }catch(e){ window.toast('Lỗi: '+e.message,'err'); }
 }
@@ -845,7 +855,20 @@ window.socApp.loadAllCases = (status) => {
 const _origClose = window.triageClose;
 window.triageClose = function(){
   if(_origClose) _origClose();
-  loadAll();
+  loadAll().then(()=>{
+    _selectedCaseId = null;
+    const body = document.getElementById('case-detail-body');
+    if(body) body.innerHTML = `
+      <div class="no-case-selected">
+        <div style="font-size:32px;margin-bottom:10px;opacity:.4">✅</div>
+        <div style="font-size:12px;color:var(--muted)">
+          Đã phân loại xong.<br>Chọn vụ việc khác để tiếp tục.
+        </div>
+      </div>`;
+    const hdr = document.getElementById('detail-case-id');
+    if(hdr) hdr.textContent = 'Chọn vụ việc để xem chi tiết';
+    if(window.loadCases) loadCases();
+  });
 };
 
 })();
