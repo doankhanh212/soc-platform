@@ -592,8 +592,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   // Start
   navigate('dashboard');
-  window.socWS.connect();
-  setTimeout(fullRefresh, 800);
+  // NOTE: auth.js will call socWS.connect() after login
+  // auth.js will also trigger fullRefresh after login
   setInterval(loadCases, 30000);
 });
 

@@ -6,7 +6,92 @@
 <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
-<div id="app">
+<!-- LOGIN PAGE — hiển thị khi chưa đăng nhập -->
+<div id="login-page" style="display:none;position:fixed;inset:0;
+  background:var(--bg);z-index:9999;
+  display:flex;align-items:center;justify-content:center">
+
+  <div style="width:380px">
+    <!-- Logo -->
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="width:56px;height:56px;border-radius:14px;
+        background:linear-gradient(135deg,var(--green),#00aa2a);
+        display:flex;align-items:center;justify-content:center;
+        font-size:28px;margin:0 auto 12px;font-weight:900;
+        color:var(--bg)">⬡</div>
+      <div style="font-family:'Orbitron',monospace;font-size:22px;
+        font-weight:900;color:var(--green);text-shadow:var(--glow)">
+        HQG AI-SOC
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-top:4px">
+        Autonomous Security Operations Platform
+      </div>
+    </div>
+
+    <!-- Form -->
+    <div style="background:var(--bg1);border:1px solid var(--border);
+      border-radius:var(--r2);padding:28px">
+      <div style="font-size:14px;font-weight:600;color:var(--text);
+        margin-bottom:20px;text-align:center">
+        Đăng nhập hệ thống
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label style="font-size:11px;color:var(--muted);
+          text-transform:uppercase;letter-spacing:.06em;
+          display:block;margin-bottom:6px">Tên đăng nhập</label>
+        <input id="login-username" type="text" placeholder="admin"
+          style="width:100%;background:var(--bg);border:1px solid var(--border);
+                 color:var(--text);padding:10px 14px;border-radius:var(--r);
+                 font-size:13px;font-family:inherit;outline:none;
+                 transition:border-color .15s"
+          onfocus="this.style.borderColor='var(--border2)'"
+          onblur="this.style.borderColor='var(--border)'"
+          onkeydown="if(event.key==='Enter')document.getElementById('login-password').focus()">
+      </div>
+
+      <div style="margin-bottom:20px">
+        <label style="font-size:11px;color:var(--muted);
+          text-transform:uppercase;letter-spacing:.06em;
+          display:block;margin-bottom:6px">Mật khẩu</label>
+        <input id="login-password" type="password" placeholder="••••••••"
+          style="width:100%;background:var(--bg);border:1px solid var(--border);
+                 color:var(--text);padding:10px 14px;border-radius:var(--r);
+                 font-size:13px;font-family:inherit;outline:none;
+                 transition:border-color .15s"
+          onfocus="this.style.borderColor='var(--border2)'"
+          onblur="this.style.borderColor='var(--border)'"
+          onkeydown="if(event.key==='Enter')window.authApp.login()">
+      </div>
+
+      <button onclick="window.authApp.login()"
+        style="width:100%;padding:11px;background:var(--green3);
+               border:1px solid var(--green);border-radius:var(--r);
+               color:var(--green);font-size:14px;font-weight:700;
+               cursor:pointer;font-family:inherit;letter-spacing:.04em;
+               transition:all .15s"
+        onmouseover="this.style.background='rgba(0,255,65,0.2)'"
+        onmouseout="this.style.background='var(--green3)'">
+        ĐĂNG NHẬP
+      </button>
+
+      <div id="login-error" style="display:none;margin-top:12px;
+        padding:8px 12px;background:rgba(255,51,51,.1);
+        border:1px solid rgba(255,51,51,.3);border-radius:var(--r);
+        color:var(--red);font-size:12px;text-align:center">
+      </div>
+
+      <div style="margin-top:16px;padding-top:14px;
+        border-top:1px solid var(--border);
+        font-size:11px;color:var(--muted);text-align:center">
+        Mặc định: <span style="color:var(--green);font-family:monospace">
+        admin / admin123</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
 
 <aside id="sidebar">
   <div id="sidebar-brand">
@@ -84,9 +169,41 @@
         🔔 <span id="notif-count" class="notif-badge">0</span>
       </button>
       <button id="refresh-btn">↻ Làm mới</button>
-      <div id="user-avatar">
-        <div class="avatar-circle">A</div>
-        <span>analyst</span>
+      <div id="user-avatar" style="display:flex;align-items:center;
+  gap:8px;cursor:pointer;position:relative"
+  onclick="window.authApp.toggleUserMenu()">
+  <div id="avatar-circle" class="avatar-circle">A</div>
+  <div>
+    <div id="avatar-name"
+      style="font-size:12px;color:var(--text);font-weight:600">analyst</div>
+    <div id="avatar-role"
+      style="font-size:10px;color:var(--muted)">SOC Level 1</div>
+  </div>
+  <!-- Dropdown menu -->
+  <div id="user-menu" style="display:none;position:absolute;
+    top:42px;right:0;background:var(--bg1);
+    border:1px solid var(--border2);border-radius:var(--r2);
+    width:200px;z-index:200;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.4)">
+    <div id="user-menu-info"
+      style="padding:12px 14px;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:600;color:var(--text)"
+        id="menu-fullname">—</div>
+      <div style="font-size:11px;color:var(--muted)" id="menu-role">—</div>
+    </div>
+    <div onclick="navigate('settings');window.authApp.hideUserMenu()"
+      style="padding:10px 14px;font-size:12px;color:var(--text);
+             cursor:pointer;transition:background .15s"
+      onmouseover="this.style.background='var(--bg-hover)'"
+      onmouseout="this.style.background=''"
+      >⚙ Cài đặt</div>
+    <div onclick="window.authApp.logout()"
+      style="padding:10px 14px;font-size:12px;color:var(--red);
+             cursor:pointer;transition:background .15s;
+             border-top:1px solid var(--border)"
+      onmouseover="this.style.background='var(--bg-hover)'"
+      onmouseout="this.style.background=''"
+      >→ Đăng xuất</div>
+  </div>
       </div>
     </div>
   </header>
@@ -642,6 +759,37 @@
       </div>
     </div>
 
+    <!-- User Management Card — chỉ hiện với admin -->
+    <div class="card" id="user-mgmt-card" style="margin-top:16px;display:none;margin-bottom:16px">
+      <div class="card-hdr">
+        <div>
+          <div class="card-hdr-title">Quản lý người dùng</div>
+          <div class="card-hdr-sub">RBAC — SOC L1 / SOC L2 / Admin / Viewer</div>
+        </div>
+        <button onclick="window.authApp.showAddUser()"
+          style="padding:6px 14px;background:var(--green3);
+                 border:1px solid var(--green);border-radius:var(--r);
+                 color:var(--green);font-size:11px;font-weight:700;
+                 cursor:pointer">+ Thêm người dùng</button>
+      </div>
+      <div class="card-body no-pad">
+        <table class="soc-table" id="users-table">
+          <thead><tr>
+            <th>Tên đăng nhập</th>
+            <th>Họ tên</th>
+            <th>Vai trò</th>
+            <th>Trạng thái</th>
+            <th>Đăng nhập lần cuối</th>
+            <th>Hành động</th>
+          </tr></thead>
+          <tbody id="users-tbody">
+            <tr><td colspan="6" style="text-align:center;
+              color:var(--muted);padding:24px">Đang tải...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Other settings -->
     <div class="card">
       <div class="card-hdr">
@@ -660,6 +808,57 @@
 </div><!-- /content-wrap -->
 </div><!-- /main-wrap -->
 </div><!-- /app -->
+
+<!-- Add User Modal -->
+<div id="add-user-modal" style="display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.8);z-index:1000;
+  align-items:center;justify-content:center">
+  <div style="background:var(--bg1);border:1px solid var(--border2);
+    border-radius:var(--r2);width:400px;padding:24px">
+    <div style="font-size:14px;font-weight:700;color:var(--green);
+      margin-bottom:20px">Thêm người dùng mới</div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <input id="new-username" type="text" placeholder="Tên đăng nhập"
+        style="background:var(--bg);border:1px solid var(--border);
+               color:var(--text);padding:9px 12px;border-radius:var(--r);
+               font-size:13px;font-family:inherit;outline:none">
+      <input id="new-password" type="password" placeholder="Mật khẩu"
+        style="background:var(--bg);border:1px solid var(--border);
+               color:var(--text);padding:9px 12px;border-radius:var(--r);
+               font-size:13px;font-family:inherit;outline:none">
+      <input id="new-fullname" type="text" placeholder="Họ và tên"
+        style="background:var(--bg);border:1px solid var(--border);
+               color:var(--text);padding:9px 12px;border-radius:var(--r);
+               font-size:13px;font-family:inherit;outline:none">
+      <input id="new-email" type="email" placeholder="Email"
+        style="background:var(--bg);border:1px solid var(--border);
+               color:var(--text);padding:9px 12px;border-radius:var(--r);
+               font-size:13px;font-family:inherit;outline:none">
+      <select id="new-role"
+        style="background:var(--bg);border:1px solid var(--border);
+               color:var(--text);padding:9px 12px;border-radius:var(--r);
+               font-size:13px;font-family:inherit;outline:none">
+        <option value="viewer">Viewer — Chỉ xem</option>
+        <option value="soc1" selected>SOC Level 1 — Triage</option>
+        <option value="soc2">SOC Level 2 — Điều tra</option>
+        <option value="admin">Admin — Toàn quyền</option>
+      </select>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button onclick="window.authApp.hideAddUser()"
+        style="flex:1;padding:9px;background:var(--bg-card);
+               border:1px solid var(--border);border-radius:var(--r);
+               color:var(--muted);font-size:13px;cursor:pointer">Hủy</button>
+      <button onclick="window.authApp.createUser()"
+        style="flex:1;padding:9px;background:var(--green3);
+               border:1px solid var(--green);border-radius:var(--r);
+               color:var(--green);font-size:13px;font-weight:700;
+               cursor:pointer">Tạo người dùng</button>
+    </div>
+  </div>
+</div>
 
 <!-- ══ TRIAGE MODAL ═════════════════════════════════════════════ -->
 <div id="modal-overlay">
@@ -749,6 +948,7 @@
 
 <!-- ══ SCRIPTS ══════════════════════════════════════════════════ -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="js/auth.js"></script>
 <script src="js/api.js"></script>
 <script src="js/ws.js"></script>
 <script src="js/charts.js"></script>
