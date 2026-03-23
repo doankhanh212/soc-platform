@@ -262,64 +262,106 @@ function renderTopIPs(ips){
     </div>`).join('');
 }
 
-const COUNTRY_FLAGS = {
-  'United States':'🇺🇸','China':'🇨🇳','Russia':'🇷🇺','Germany':'🇩🇪','France':'🇫🇷',
-  'United Kingdom':'🇬🇧','Brazil':'🇧🇷','India':'🇮🇳','Netherlands':'🇳🇱','Singapore':'🇸🇬',
-  'South Korea':'🇰🇷','Japan':'🇯🇵','Australia':'🇦🇺','Canada':'🇨🇦','Ukraine':'🇺🇦',
-  'Iran':'🇮🇷','North Korea':'🇰🇵','Vietnam':'🇻🇳','Indonesia':'🇮🇩','Thailand':'🇹🇭',
-  'Hong Kong':'🇭🇰','Taiwan':'🇹🇼','Pakistan':'🇵🇰','Bangladesh':'🇧🇩','Turkey':'🇹🇷',
+const COUNTRY_CODES = {
+  "Afghanistan":"af","Albania":"al","Algeria":"dz","Argentina":"ar",
+  "Australia":"au","Austria":"at","Azerbaijan":"az","Bangladesh":"bd",
+  "Belarus":"by","Belgium":"be","Bolivia":"bo","Brazil":"br",
+  "Bulgaria":"bg","Cambodia":"kh","Canada":"ca","Chile":"cl",
+  "China":"cn","Colombia":"co","Croatia":"hr","Czech Republic":"cz",
+  "Denmark":"dk","Ecuador":"ec","Egypt":"eg","Estonia":"ee",
+  "Ethiopia":"et","Finland":"fi","France":"fr","Georgia":"ge",
+  "Germany":"de","Ghana":"gh","Greece":"gr","Guatemala":"gt",
+  "Hong Kong":"hk","Hungary":"hu","India":"in","Indonesia":"id",
+  "Iran":"ir","Iraq":"iq","Ireland":"ie","Israel":"il",
+  "Italy":"it","Japan":"jp","Jordan":"jo","Kazakhstan":"kz",
+  "Kenya":"ke","Latvia":"lv","Lebanon":"lb","Lithuania":"lt",
+  "Luxembourg":"lu","Malaysia":"my","Mexico":"mx","Moldova":"md",
+  "Mongolia":"mn","Morocco":"ma","Myanmar":"mm","Nepal":"np",
+  "Netherlands":"nl","New Zealand":"nz","Nigeria":"ng","Norway":"no",
+  "Pakistan":"pk","Palestine":"ps","Panama":"pa","Peru":"pe",
+  "Philippines":"ph","Poland":"pl","Portugal":"pt","Romania":"ro",
+  "Russia":"ru","Saudi Arabia":"sa","Serbia":"rs","Singapore":"sg",
+  "Slovakia":"sk","Slovenia":"si","South Africa":"za","South Korea":"kr",
+  "Spain":"es","Sri Lanka":"lk","Sweden":"se","Switzerland":"ch",
+  "Syria":"sy","Taiwan":"tw","Thailand":"th","Turkey":"tr",
+  "Ukraine":"ua","United Arab Emirates":"ae","United Kingdom":"gb",
+  "United States":"us","Uruguay":"uy","Uzbekistan":"uz",
+  "Venezuela":"ve","Vietnam":"vn","Yemen":"ye","Zimbabwe":"zw",
 };
+
+function _flagImg(country) {
+  const code = COUNTRY_CODES[country];
+  if (!code) return '<span style="font-size:16px;margin-right:6px">🌐</span>';
+  return `<img src="https://flagcdn.com/20x15/${code}.png"
+    width="20" height="15"
+    style="margin-right:6px;vertical-align:middle;
+           border-radius:2px;object-fit:cover;flex-shrink:0"
+    onerror="this.style.display='none'"
+    alt="${country}">`;
+}
 
 function renderGeoTable(geoIPs, topIPs) {
   const el = document.getElementById('geo-attack-table');
-  if(!el) return;
+  if (!el) return;
 
-  let data = [];
-  if(geoIPs && geoIPs.length) {
-    data = geoIPs.map(g=>({
-      country: g.country||'Unknown',
-      city: g.city||'',
-      ip: g.ip,
-      count: g.count,
-    }));
-  } else if(topIPs && topIPs.length) {
-    data = topIPs.map(t=>({country:'—', city:'', ip:t.ip, count:t.count}));
-  }
+  let data = (geoIPs && geoIPs.length)
+    ? geoIPs
+    : (topIPs || []).map(t => ({ip:t.ip, count:t.count, country:'', city:''}));
 
-  if(!data.length){
-    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Chưa có dữ liệu tấn công</div>';
+  if (!data.length) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:12px">Chưa có dữ liệu tấn công</div>';
     return;
   }
 
-  data.sort((a,b)=>b.count-a.count);
+  data.sort((a, b) => b.count - a.count);
   const max = data[0].count || 1;
 
-  let h = `<div class="geo-row" style="border-bottom:1px solid var(--border);margin-bottom:4px;padding-bottom:6px">
-    <span class="geo-rank" style="color:var(--muted);font-size:10px">#</span>
-    <span class="geo-country" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em">Quốc gia</span>
-    <span class="geo-ip" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em">IP nguồn</span>
-    <span style="flex:1"></span>
-    <span class="geo-count" style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em">Số lần</span>
-  </div>`;
-
-  h += data.slice(0,12).map((d,i)=>{
-    const pct = (d.count/max*100).toFixed(1);
-    const barColor = d.count > 500 ? 'var(--red)' : d.count > 100 ? 'var(--amber)' : 'var(--green)';
-    const countColor = d.count > 500 ? 'var(--red)' : d.count > 100 ? 'var(--amber)' : 'var(--text)';
-    const flag = COUNTRY_FLAGS[d.country] || '🌐';
-    const label = d.country !== '—' ? `${flag} ${d.country}${d.city?' · '+d.city:''}` : '—';
-    return `<div class="geo-row">
-      <span class="geo-rank">${i+1}</span>
-      <span class="geo-country" title="${d.country}${d.city?' · '+d.city:''}">${label}</span>
-      <span class="geo-ip">${d.ip}</span>
-      <div class="geo-bar-wrap">
-        <div class="geo-bar" style="width:${pct}%;background:${barColor}"></div>
-      </div>
-      <span class="geo-count" style="color:${countColor}">${d.count.toLocaleString()}</span>
+  const header = `
+    <div style="display:flex;padding:0 0 6px;border-bottom:1px solid var(--border);
+      font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+      color:var(--muted);margin-bottom:6px">
+      <span style="min-width:24px">#</span>
+      <span style="min-width:180px">Quốc gia</span>
+      <span style="min-width:125px">IP nguồn</span>
+      <span style="flex:1">Tần suất</span>
+      <span style="min-width:55px;text-align:right">Số lần</span>
     </div>`;
+
+  const rows = data.slice(0, 10).map((d, i) => {
+    const pct   = (d.count / max * 100).toFixed(1);
+    const color = d.count > 1000 ? 'var(--red)'
+          : d.count > 300  ? 'var(--amber)'
+          : d.count > 50   ? '#ffcc00'
+          : 'var(--green)';
+
+    // Hiển thị city nếu có
+    const location = d.country
+      ? (d.city ? `${d.country} · ${d.city}` : d.country)
+      : 'Unknown';
+
+    return `
+      <div class="geo-row">
+        <span class="geo-rank" style="min-width:24px;color:var(--muted);
+          font-family:'Share Tech Mono',monospace;font-size:11px">${i + 1}</span>
+        <span class="geo-country" style="min-width:180px;font-size:12px;
+          color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${_flagImg(d.country)}
+          ${location}
+        </span>
+        <span class="geo-ip" style="min-width:125px;font-family:'Share Tech Mono',
+          monospace;font-size:11px;color:var(--cyan)">${d.ip}</span>
+        <div class="geo-bar-wrap" style="flex:1;height:5px;background:rgba(0,255,65,.08);
+          border-radius:3px;overflow:hidden;margin:0 8px">
+          <div class="geo-bar" style="width:${pct}%;height:100%;
+            background:${color};border-radius:3px;transition:width .4s"></div>
+        </div>
+        <span class="geo-count" style="min-width:55px;text-align:right;
+          font-family:'Share Tech Mono',monospace;font-size:11px;
+          color:${color}">${d.count.toLocaleString()}</span>
+      </div>`;
   }).join('');
 
-  el.innerHTML = h;
+  el.innerHTML = header + rows;
 }
 
 /* ── MITRE heatmap ──────────────────────────────── */

@@ -164,59 +164,67 @@ async def get_top_ips_with_geo(size: int = 12) -> list[dict]:
         "size": 0,
         "query": {"range": {"@timestamp": {"gte": "now-24h"}}},
         "aggs": {
-            "top_ips": {
-                "terms": {"field": "data.src_ip", "size": size},
+            "by_srcip": {
+                "terms": {
+                    "field": "data.srcip",
+                    "size": size
+                },
                 "aggs": {
-                    "geo_hit": {
+                    "geo": {
                         "top_hits": {
                             "size": 1,
-                            "_source": [
-                                "GeoLocation.country_name",
-                                "GeoLocation.city_name",
-                                "GeoLocation.latitude",
-                                "GeoLocation.longitude",
-                            ],
-                            "sort": [{"GeoLocation.country_name": {
-                                "order": "asc",
-                                "missing": "_last",
-                                "unmapped_type": "keyword",
-                            }}],
-                        }
-                    },
-                    "any_hit": {
-                        "top_hits": {
-                            "size": 1,
-                            "_source": [
-                                "GeoLocation.country_name",
-                                "GeoLocation.city_name",
-                            ]
+                            "_source": ["GeoLocation"]
                         }
                     }
+                }
+            },
+            "by_src_ip": {
+                "terms": {
+                    "field": "data.src_ip",
+                    "size": size
                 }
             }
         }
     }
     result = await _search(cfg.index_wazuh_alerts, body)
-    buckets = result["aggregations"]["top_ips"]["buckets"]
-    out = []
-    for b in buckets:
+    aggs = result.get("aggregations", {})
+    seen: dict = {}
+
+    for b in aggs.get("by_srcip", {}).get("buckets", []):
         ip = b["key"]
         if not ip or ip in ("127.0.0.1", "::1", "0.0.0.0"):
             continue
-        # Ưu tiên hit có GeoLocation
-        geo_hits = b["geo_hit"]["hits"]["hits"]
-        any_hits = b["any_hit"]["hits"]["hits"]
-        hits = geo_hits if geo_hits else any_hits
+        hits = b.get("geo", {}).get("hits", {}).get("hits", [])
         geo = hits[0]["_source"].get("GeoLocation", {}) if hits else {}
-        out.append({
+        loc = geo.get("location", {})
+        seen[ip] = {
             "ip":      ip,
             "count":   b["doc_count"],
-            "country": geo.get("country_name") or "",
-            "city":    geo.get("city_name") or "",
-            "lat":     float(geo.get("latitude")  or 0),
-            "lon":     float(geo.get("longitude") or 0),
-        })
-    return out
+            "country": geo.get("country_name", ""),
+            "city":    geo.get("city_name", ""),
+            "lat":     float(loc.get("lat", 0) or 0),
+            "lon":     float(loc.get("lon", 0) or 0),
+        }
+
+    for b in aggs.get("by_src_ip", {}).get("buckets", []):
+        ip = b["key"]
+        if not ip or ip in ("127.0.0.1", "::1", "0.0.0.0"):
+            continue
+        if ip in seen:
+            seen[ip]["count"] += b["doc_count"]
+        else:
+            seen[ip] = {
+                "ip":      ip,
+                "count":   b["doc_count"],
+                "country": "",
+                "city":    "",
+                "lat":     0.0,
+                "lon":     0.0,
+            }
+
+    return sorted(seen.values(),
+                  key=lambda x: x["count"],
+                  reverse=True)[:size]
 
 
 async def get_alerts_over_time(hours: int = 24) -> list[dict]:
