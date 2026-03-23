@@ -1038,3 +1038,14 @@ body::before{
   }
   #topbar-center { display: none; }
 }
+
+/* ── THEME SELECTOR ── */
+.theme-card {
+  transition: transform .15s, border-color .15s;
+}
+.theme-card:hover {
+  transform: translateY(-2px);
+}
+.theme-card.active {
+  box-shadow: 0 0 12px rgba(0,255,65,0.3);
+}

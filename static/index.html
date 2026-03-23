@@ -534,15 +534,125 @@
 </div>
 
 <div id="page-settings" class="page">
-  <div class="card">
-    <div class="card-hdr">
-      <div>
-        <div class="card-hdr-title">Cài đặt hệ thống</div>
-        <div class="card-hdr-sub">Quản trị giao diện và kết nối nền tảng</div>
+  <div style="max-width:900px">
+
+    <!-- Theme Picker -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-hdr">
+        <div>
+          <div class="card-hdr-title">Giao diện & Màu sắc</div>
+          <div class="card-hdr-sub">Tùy chỉnh màu sắc dashboard theo sở thích</div>
+        </div>
+        <button onclick="window.themeApp.reset()"
+          style="padding:5px 12px;background:var(--bg-card);border:1px solid var(--border);
+                 border-radius:var(--r);color:var(--muted);font-size:11px;cursor:pointer">
+          ↺ Đặt lại mặc định
+        </button>
+      </div>
+      <div class="card-body">
+
+        <!-- Theme presets grid -->
+        <div style="margin-bottom:20px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;
+            letter-spacing:.08em;color:var(--muted);margin-bottom:12px">
+            Chủ đề có sẵn
+          </div>
+          <div id="theme-grid" style="display:grid;
+            grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">
+          </div>
+        </div>
+
+        <!-- Current theme preview -->
+        <div style="margin-bottom:20px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;
+            letter-spacing:.08em;color:var(--muted);margin-bottom:12px">
+            Xem trước
+          </div>
+          <div id="theme-preview"
+            style="border:1px solid var(--border);border-radius:var(--r2);
+                   overflow:hidden;height:120px;position:relative">
+            <!-- Preview được render bởi JS -->
+          </div>
+        </div>
+
+        <!-- Custom colors -->
+        <div>
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;
+            letter-spacing:.08em;color:var(--muted);margin-bottom:12px">
+            Tùy chỉnh màu thủ công
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div>
+              <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px">
+                Màu nền chính
+              </label>
+              <div style="display:flex;align-items:center;gap:8px">
+                <input type="color" id="custom-bg" value="#010a03"
+                  onchange="window.themeApp.customColor('bg',this.value)"
+                  style="width:36px;height:36px;border:1px solid var(--border);
+                         border-radius:var(--r);cursor:pointer;background:none">
+                <input type="text" id="custom-bg-text" value="#010a03"
+                  oninput="window.themeApp.customColorText('bg',this.value)"
+                  style="flex:1;background:var(--bg-card);border:1px solid var(--border);
+                         color:var(--text);padding:6px 10px;border-radius:var(--r);
+                         font-size:12px;font-family:monospace;outline:none">
+              </div>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px">
+                Màu nhấn (Accent)
+              </label>
+              <div style="display:flex;align-items:center;gap:8px">
+                <input type="color" id="custom-accent" value="#00ff41"
+                  onchange="window.themeApp.customColor('accent',this.value)"
+                  style="width:36px;height:36px;border:1px solid var(--border);
+                         border-radius:var(--r);cursor:pointer;background:none">
+                <input type="text" id="custom-accent-text" value="#00ff41"
+                  oninput="window.themeApp.customColorText('accent',this.value)"
+                  style="flex:1;background:var(--bg-card);border:1px solid var(--border);
+                         color:var(--text);padding:6px 10px;border-radius:var(--r);
+                         font-size:12px;font-family:monospace;outline:none">
+              </div>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--muted);display:block;margin-bottom:6px">
+                Màu chữ chính
+              </label>
+              <div style="display:flex;align-items:center;gap:8px">
+                <input type="color" id="custom-text" value="#b0ffb8"
+                  onchange="window.themeApp.customColor('text',this.value)"
+                  style="width:36px;height:36px;border:1px solid var(--border);
+                         border-radius:var(--r);cursor:pointer;background:none">
+                <input type="text" id="custom-text-text" value="#b0ffb8"
+                  oninput="window.themeApp.customColorText('text',this.value)"
+                  style="flex:1;background:var(--bg-card);border:1px solid var(--border);
+                         color:var(--text);padding:6px 10px;border-radius:var(--r);
+                         font-size:12px;font-family:monospace;outline:none">
+              </div>
+            </div>
+          </div>
+          <button onclick="window.themeApp.applyCustom()"
+            style="margin-top:12px;padding:8px 20px;background:var(--green3);
+                   border:1px solid var(--green);border-radius:var(--r);
+                   color:var(--green);font-size:12px;font-weight:700;cursor:pointer">
+            Áp dụng màu tùy chỉnh
+          </button>
+        </div>
+
       </div>
     </div>
-    <div style="padding:24px;color:var(--muted);font-size:13px">
-      Khu vực cấu hình dành cho analyst profile, rule tuning, notification channel và kết nối data source.
+
+    <!-- Other settings -->
+    <div class="card">
+      <div class="card-hdr">
+        <div class="card-hdr-title">Cài đặt hệ thống</div>
+      </div>
+      <div class="card-body">
+        <div style="font-size:12px;color:var(--muted);line-height:1.8">
+          Khu vực cấu hình dành cho analyst profile, rule tuning,
+          notification channel và kết nối data source.
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -674,5 +784,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
 });
 </script>
+<script src="js/theme.js"></script>
 </body>
 </html>
