@@ -85,12 +85,37 @@ window.renderSuriPage = function(page){
 };
 
 /* ── Navigation ─────────────────────────────────── */
-function navigate(page){
-  document.querySelectorAll('.nav-tab').forEach(t=>
-    t.classList.toggle('active', t.dataset.page===page));
-  document.querySelectorAll('.page').forEach(p=>
-    p.classList.toggle('active', p.id===`page-${page}`));
-  document.title = `HQG SOC — ${page.charAt(0).toUpperCase()+page.slice(1)}`;
+function navigate(page) {
+  document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+    item.classList.toggle('active', item.dataset.page === page);
+  });
+
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.toggle('active', p.id === `page-${page}`);
+  });
+
+  const titles = {
+    'dashboard':    ['Dashboard', 'Tổng quan hệ thống'],
+    'alerts':       ['Hàng đợi cảnh báo', 'SOC Level 1'],
+    'cases':        ['Quản lý vụ việc', 'SOC Level 2'],
+    'mitre':        ['MITRE ATT&CK', 'Kỹ thuật tấn công'],
+    'threat-intel': ['Threat Intelligence', 'IOC & Enrichment'],
+    'hunting':      ['Threat Hunting', 'Truy vết nâng cao'],
+    'ai':           ['Động cơ AI', 'Phát hiện bất thường'],
+    'settings':     ['Cài đặt', 'Hệ thống'],
+  };
+  const [title, sub] = titles[page] || [page, ''];
+  const titleEl = document.getElementById('page-title');
+  const subEl   = document.getElementById('page-subtitle');
+  if(titleEl) titleEl.textContent = title;
+  if(subEl)   subEl.textContent   = sub;
+
+  if(page === 'alerts' && window.alertQueue) {
+    window.alertQueue.reload();
+  }
+  if(page === 'cases' && window.casesApp) {
+    window.casesApp.loadAll();
+  }
 }
 window.navigate = navigate;
 
@@ -454,14 +479,16 @@ document.addEventListener('soc:data', e=>{
   const d = e.detail;
   if(d.type !== 'snapshot') return;
 
-  document.getElementById('last-update').textContent =
-    new Date().toLocaleTimeString('vi-VN');
+  const nowLabel = new Date().toLocaleTimeString('vi-VN');
+  const lastUpdateEl = document.getElementById('last-update');
+  const aqUpdateEl = document.getElementById('aq-last-update');
+  if (lastUpdateEl) lastUpdateEl.textContent = nowLabel;
+  if (aqUpdateEl) aqUpdateEl.textContent = nowLabel;
 
   if(d.kpis) renderKPIs(d.kpis);
   if(d.recent_alerts){
     renderStream(d.recent_alerts);
-    _wazuhAll = d.recent_alerts; _wazuhPage = 1; window.renderWazuhPage(1);
-    document.getElementById('badge-alerts').textContent = d.recent_alerts.length;
+    _wazuhAll = d.recent_alerts;
   }
   if(d.suricata_alerts){
     _suriAll = d.suricata_alerts; _suriPage = 1; window.renderSuriPage(1);
@@ -472,6 +499,16 @@ document.addEventListener('soc:data', e=>{
   }
   if(d.top_rules) window.socCharts.updateRulesBarDirect(d.top_rules);
   if(d.suricata_sigs) window.socCharts.updateSuricataBarDirect(d.suricata_sigs);
+  if(d.kpis){
+    const alertsBadge = document.getElementById('nav-badge-alerts');
+    const notif = document.getElementById('notif-count');
+    const critical = d.kpis.critical_alerts || 0;
+    if(alertsBadge) alertsBadge.textContent = (d.kpis.total_alerts_24h || 0).toLocaleString();
+    if(notif){
+      notif.textContent = critical;
+      notif.style.display = critical > 0 ? 'block' : 'none';
+    }
+  }
   if(window.casesApp && d.case_stats){
     const cs = d.case_stats;
     const el = id => document.getElementById(id);
@@ -480,6 +517,8 @@ document.addEventListener('soc:data', e=>{
     if(el('cs-stat-new'))    el('cs-stat-new').textContent    = cs.new||0;
     if(el('cs-stat-done'))   el('cs-stat-done').textContent   = cs.resolved||0;
     if(el('cs-stat-triaged'))el('cs-stat-triaged').textContent= cs.triaged_today||0;
+    if(el('nav-badge-cases')) el('nav-badge-cases').textContent =
+      ((cs.new||0) + (cs.in_progress||0) + (cs.escalated||0)).toLocaleString();
   }
 });
 
@@ -506,22 +545,32 @@ async function fullRefresh(){
     renderGeoTable([], topIPs);
     // Lấy thêm geo data
     window.socApi.geoStats?.().then(geo => renderGeoTable(geo, topIPs)).catch(()=>{});
-    _wazuhAll = wazuh; _wazuhPage = 1; window.renderWazuhPage(1);
     _suriAll  = suri;  _suriPage = 1;  window.renderSuriPage(1);
     renderMitre(mitre.techniques||[]);
     renderMitreDetailTable(mitre.techniques||[]);
     renderStream(wazuh);
     loadCases();
     window.casesApp?.loadAll?.();
+    window.alertQueue?.reload?.();
+    const alertsBadge = document.getElementById('nav-badge-alerts');
+    const casesBadge = document.getElementById('nav-badge-cases');
+    const notif = document.getElementById('notif-count');
+    if (alertsBadge) alertsBadge.textContent = (kpis.total_alerts_24h || 0).toLocaleString();
+    if (casesBadge) casesBadge.textContent =
+      ((cStats.new||0) + (cStats.in_progress||0) + (cStats.escalated||0)).toLocaleString();
+    if (notif) {
+      notif.textContent = kpis.critical_alerts || 0;
+      notif.style.display = (kpis.critical_alerts || 0) > 0 ? 'block' : 'none';
+    }
     toast('Đã làm mới','ok',1500);
   } catch(e){ toast('Lỗi làm mới: '+e.message,'err'); }
 }
 
 /* ── Init ────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', ()=>{
-  // Nav
-  document.querySelectorAll('.nav-tab[data-page]').forEach(t=>
-    t.addEventListener('click', ()=>navigate(t.dataset.page)));
+  document.querySelectorAll('.nav-item[data-page]').forEach(item => {
+    item.addEventListener('click', () => navigate(item.dataset.page));
+  });
 
   document.querySelector('[data-page="mitre"]')?.addEventListener('click', async ()=>{
     try{
@@ -1095,3 +1144,292 @@ window.triggerRuleEngine = async function() {
 document.addEventListener('DOMContentLoaded', () => {
   loadRuleStatus();
 });
+
+(function(){
+  let _data = [], _filtered = [];
+  let _selSev = null, _selStatus = null;
+  let _searchQ = '', _timeHours = 24;
+  let _selected = new Set();
+  let _page = 1;
+  const PAGE = 30;
+
+  function _sevClass(lv) {
+    const n = parseInt(lv)||0;
+    if(n>=12) return 'critical';
+    if(n>=7)  return 'high';
+    if(n>=4)  return 'medium';
+    return 'low';
+  }
+  function _alertType(a) {
+    const grp = a?.rule?.groups||[];
+    if(grp.includes('suricata')) return 'Mạng';
+    if(grp.includes('syscheck'))  return 'FIM';
+    if(grp.includes('authentication')||grp.includes('sshd')) return 'Xác thực';
+    if(grp.includes('audit'))     return 'Audit';
+    if(grp.includes('web'))       return 'Web';
+    return 'Hệ thống';
+  }
+  function _fmtTs(iso){
+    if(!iso) return '—';
+    return new Date(iso).toLocaleTimeString('vi-VN',
+      {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  }
+
+  async function load(){
+    try{
+      const lv = document.getElementById('aq-level-select')?.value || 1;
+      const data = await window.socApi.wazuhAlerts(500, parseInt(lv));
+      _data = data;
+      _page = 1;
+      _apply();
+    }catch(e){ window.toast('Lỗi tải alert: '+e.message,'err'); }
+  }
+
+  function _apply(){
+    _filtered = _data.filter(a=>{
+      const lv = parseInt(a?.rule?.level)||0;
+      const sev = _sevClass(lv);
+      if(_selSev && sev !== _selSev) return false;
+      if(_selStatus){
+        const currentStatus = (a?.status || 'new').toLowerCase();
+        if(currentStatus !== _selStatus) return false;
+      }
+      if(_searchQ){
+        const q = _searchQ.toLowerCase();
+        if(!(a?.rule?.description||'').toLowerCase().includes(q) &&
+           !(a?.data?.src_ip||a?.data?.srcip||'').includes(q) &&
+           !(a?.agent?.name||'').toLowerCase().includes(q)) return false;
+      }
+      if(_timeHours){
+        const ts = new Date(a?.['@timestamp'] || 0).getTime();
+        const cutoff = Date.now() - (_timeHours * 3600 * 1000);
+        if(ts < cutoff) return false;
+      }
+      return true;
+    });
+    _render();
+  }
+
+  function _render(){
+    const tbody = document.getElementById('aq-tbody');
+    const showEl = document.getElementById('aq-showing');
+    if(!tbody) return;
+
+    const total = _filtered.length;
+    const pages = Math.ceil(total/PAGE);
+    _page = Math.max(1, Math.min(_page, pages||1));
+    const slice = _filtered.slice((_page-1)*PAGE, _page*PAGE);
+
+    if(showEl) showEl.textContent =
+      `Hiển thị ${slice.length}/${total} cảnh báo · Trang ${_page}/${pages||1}`;
+
+    if(!slice.length){
+      tbody.innerHTML = `<tr><td colspan="12"
+        style="text-align:center;color:var(--muted);padding:32px">
+        Không có cảnh báo nào
+      </td></tr>`;
+      _renderPag('wazuh-pag', _page, total, 'window.alertQueue.goPage');
+      return;
+    }
+
+    const sevColors = {
+      critical:'var(--red)', high:'var(--amber)',
+      medium:'#ffcc00', low:'var(--green)'
+    };
+    const sevLabels = {
+      critical:'NGHIÊM TRỌNG', high:'CAO',
+      medium:'TRUNG BÌNH', low:'THẤP'
+    };
+
+    tbody.innerHTML = slice.map((a,i)=>{
+      const idx = (_page-1)*PAGE + i;
+      const lv   = parseInt(a?.rule?.level)||0;
+      const sev  = _sevClass(lv);
+      const col  = sevColors[sev];
+      const src  = a?.data?.src_ip || a?.data?.srcip || '—';
+      const mitre = a?.rule?.mitre?.id?.[0] || '—';
+      const type  = _alertType(a);
+      const alertId = `ALT-${new Date(a['@timestamp']).toISOString().slice(0,10).replace(/-/g,'')}-${String(idx+1).padStart(4,'0')}`;
+      return `<tr>
+        <td style="padding:8px">
+          <input type="checkbox" class="aq-cb" data-idx="${idx}"
+            ${_selected.has(idx)?'checked':''}
+            onchange="window.alertQueue.toggleOne(${idx},this.checked)"
+            onclick="event.stopPropagation()" style="cursor:pointer">
+        </td>
+        <td class="mono" style="color:var(--muted);font-size:10px">${alertId}</td>
+        <td style="color:var(--text);max-width:220px;overflow:hidden;
+          text-overflow:ellipsis;white-space:nowrap"
+          title="${a?.rule?.description||''}">${(a?.rule?.description||'—').slice(0,40)}</td>
+        <td>
+          <span style="background:${col}22;color:${col};
+            border:1px solid ${col}55;padding:2px 8px;
+            border-radius:3px;font-size:10px;font-weight:700">
+            ${sevLabels[sev]}
+          </span>
+        </td>
+        <td><span class="aq-type-badge">${type}</span></td>
+        <td class="mono" style="font-size:11px;color:var(--muted)">
+          ${_fmtTs(a['@timestamp'])}
+        </td>
+        <td style="color:var(--green)">${a?.agent?.name||'—'}</td>
+        <td class="mono" style="color:var(--cyan);font-size:11px">${src}</td>
+        <td style="color:var(--purple);font-family:monospace;font-size:11px">
+          ${mitre}
+        </td>
+        <td><span class="${(a?.status||'new').toLowerCase()==='assigned'?'aq-status-assigned':'aq-status-new'}">${(a?.status||'new').toLowerCase()==='assigned'?'Đã giao':'Mới'}</span></td>
+        <td style="color:var(--muted);font-size:11px">${a?.assignee||'Chưa giao'}</td>
+        <td>
+          <button class="aq-action-btn aq-btn-investigate"
+            onclick="window.alertQueue.investigate(${idx})">🔍</button>
+          <button class="aq-action-btn aq-btn-case"
+            onclick='window.createCaseFromAlert(${JSON.stringify(a)})'>+ Vụ việc</button>
+          <button class="aq-action-btn aq-btn-fp"
+            onclick="window.alertQueue.markFP(${idx})">✗ FP</button>
+        </td>
+      </tr>`;
+    }).join('');
+
+    _renderPag('wazuh-pag', _page, total, 'window.alertQueue.goPage');
+    _updateBulkBar();
+  }
+
+  function _updateBulkBar(){
+    const n = _selected.size;
+    const tb = document.getElementById('aq-bulk-bar');
+    const ct = document.getElementById('aq-bulk-count');
+    if(tb) tb.style.display = n>0?'flex':'none';
+    if(ct) ct.textContent = `${n} alert đã chọn`;
+  }
+
+  function toggleOne(idx, checked){
+    checked ? _selected.add(idx) : _selected.delete(idx);
+    _updateBulkBar();
+  }
+  function toggleAll(checked){
+    _selected.clear();
+    if(checked){
+      const total = _filtered.length;
+      const pages = Math.ceil(total/PAGE);
+      const slice = _filtered.slice((_page-1)*PAGE, _page*PAGE);
+      slice.forEach((_,i)=>_selected.add((_page-1)*PAGE+i));
+    }
+    document.querySelectorAll('.aq-cb').forEach(cb=>cb.checked=checked);
+    _updateBulkBar();
+  }
+  function clearBulk(){ _selected.clear(); _render(); }
+
+  async function bulkAction(type){
+    const alerts = [..._selected].map(i=>_filtered[i]).filter(Boolean);
+    if(!alerts.length) return;
+
+    if(type==='false-positive'){
+      if(!confirm(`Đánh dấu ${alerts.length} alert là False Positive?`)) return;
+      window.toast(`Đã đánh dấu ${alerts.length} alert là False Positive`,'ok');
+      clearBulk();
+      return;
+    }
+    if(type==='escalate'||type==='investigate'){
+      const res = await fetch('/api/rules/bulk-create-cases',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({alerts})
+      });
+      const d = await res.json();
+      window.toast(`Đã tạo ${d.created} vụ việc`,'ok');
+      clearBulk();
+      window.casesApp?.loadAll?.();
+      return;
+    }
+    if(type==='assign'){
+      const name = prompt('Giao cho analyst (nhập tên):');
+      if(!name) return;
+      window.toast(`Đã giao ${alerts.length} alert cho ${name}`,'ok');
+      clearBulk();
+    }
+  }
+
+  function investigate(idx){
+    const a = _filtered[idx];
+    if(!a) return;
+    window.createCaseFromAlert(a);
+    window.toast('Đã tạo vụ việc để điều tra','ok');
+  }
+
+  function markFP(idx){
+    const a = _filtered[idx];
+    if(!a) return;
+    window.toast(`Alert ${a?.rule?.id} đã đánh dấu False Positive`,'ok');
+  }
+
+  function filterSev(sev, btn){
+    _selSev = sev;
+    btn.closest('#aq-filter-bar')
+      .querySelectorAll('.aq-filter-btn')
+      .forEach(b=>{
+        if(b.parentElement === btn.parentElement)
+          b.classList.toggle('active', b===btn);
+      });
+    _page=1; _apply();
+  }
+
+  function filterTime(h, btn){
+    _timeHours = h;
+    btn.closest('#aq-filter-bar')
+      .querySelectorAll('.aq-filter-btn')
+      .forEach(b=>{
+        if(b.parentElement === btn.parentElement)
+          b.classList.toggle('active', b===btn);
+      });
+    _page=1; load();
+  }
+
+  function filterStatus(s, btn){
+    _selStatus=s;
+    if (btn) {
+      btn.closest('#aq-filter-bar')
+        .querySelectorAll('.aq-filter-btn')
+        .forEach(b=>{
+          if(b.parentElement === btn.parentElement)
+            b.classList.toggle('active', b===btn);
+        });
+    }
+    _page=1; _apply();
+  }
+  function search(q){ _searchQ=q; _page=1; _apply(); }
+  function goPage(p){ _page=p; _render(); window.scrollTo(0,0); }
+  function reload(){ load(); }
+
+  document.querySelector('[data-page="alerts"]')
+    ?.addEventListener('click', ()=>{ if(!_data.length) load(); });
+
+  document.addEventListener('soc:data', e=>{
+    if(e.detail.type!=='snapshot') return;
+    if(e.detail.recent_alerts){
+      _data = e.detail.recent_alerts;
+      if(document.getElementById('page-alerts')?.classList.contains('active')){
+        _apply();
+      }
+    }
+    const badge = document.getElementById('nav-badge-alerts');
+    if(badge && e.detail.kpis){
+      badge.textContent = e.detail.kpis.total_alerts_24h?.toLocaleString()||0;
+    }
+    const notif = document.getElementById('notif-count');
+    if(notif && e.detail.kpis){
+      const crit = e.detail.kpis.critical_alerts||0;
+      notif.textContent = crit;
+      notif.style.display = crit>0?'block':'none';
+    }
+    const updateEl = document.getElementById('aq-last-update');
+    if (updateEl) {
+      updateEl.textContent = new Date().toLocaleTimeString('vi-VN');
+    }
+  });
+
+  window.alertQueue = {
+    load, reload, filterSev, filterTime, filterStatus,
+    search, goPage, toggleOne, toggleAll,
+    clearBulk, bulkAction, investigate, markFP
+  };
+})();

@@ -8,36 +8,90 @@
 <body>
 <div id="app">
 
-<!-- ═══ TOPNAV ══════════════════════════════════════════════════ -->
-<nav id="topnav">
-  <div class="brand">⬡ HQG SOC DEFENSE</div>
-  <div class="nav-tabs">
-    <div class="nav-tab active" data-page="dashboard">BẢNG ĐIỀU KHIỂN</div>
-    <div class="nav-tab" data-page="alerts">
-      CẢNH BÁO <span id="badge-alerts" style="margin-left:6px;background:rgba(255,51,51,.2);
-        color:var(--red);border:1px solid rgba(255,51,51,.3);border-radius:10px;
-        font-size:10px;padding:1px 7px">0</span>
+<aside id="sidebar">
+  <div id="sidebar-brand">
+    <div class="brand-icon">⬡</div>
+    <div>
+      <div class="brand-name">HQG</div>
+      <div class="brand-sub">AI-SOC Platform</div>
     </div>
-    <div class="nav-tab" data-page="cases">VỤ VIỆC</div>
-    <div class="nav-tab" data-page="mitre">MITRE ATT&amp;CK</div>
-    <div class="nav-tab" data-page="ai">ĐỘNG CƠ AI</div>
   </div>
-  <div class="nav-right">
-    <div id="ws-status">
-      <div id="ws-dot"></div>
-      <span id="ws-label" style="font-family:'Share Tech Mono',monospace;font-size:10px">ĐANG KẾT NỐI…</span>
-    </div>
-    <div class="search-box">
-      <span>🔍</span>
-      <input type="text" placeholder="Tìm cảnh báo, IP…">
-    </div>
-    <button id="refresh-btn">↻ LÀM MỚI</button>
-    <span id="last-update" style="font-size:10px;color:var(--muted)">—</span>
-  </div>
-</nav>
 
-<!-- ═══ PAGE WRAP ═══════════════════════════════════════════════ -->
-<div id="page-wrap">
+  <nav id="sidebar-nav">
+    <div class="nav-item active" data-page="dashboard">
+      <span class="nav-icon">⊞</span>
+      <span class="nav-label">Dashboard</span>
+    </div>
+    <div class="nav-item" data-page="alerts">
+      <span class="nav-icon">🔔</span>
+      <span class="nav-label">Hàng đợi cảnh báo</span>
+      <span class="nav-badge" id="nav-badge-alerts">0</span>
+    </div>
+    <div class="nav-item" data-page="cases">
+      <span class="nav-icon">📁</span>
+      <span class="nav-label">Vụ việc</span>
+      <span class="nav-badge" id="nav-badge-cases">0</span>
+    </div>
+    <div class="nav-item" data-page="mitre">
+      <span class="nav-icon">🗺</span>
+      <span class="nav-label">MITRE ATT&amp;CK</span>
+    </div>
+    <div class="nav-item" data-page="threat-intel">
+      <span class="nav-icon">🌐</span>
+      <span class="nav-label">Threat Intel</span>
+    </div>
+    <div class="nav-item" data-page="hunting">
+      <span class="nav-icon">🔎</span>
+      <span class="nav-label">Threat Hunting</span>
+    </div>
+    <div class="nav-item" data-page="ai">
+      <span class="nav-icon">🤖</span>
+      <span class="nav-label">Động cơ AI</span>
+    </div>
+  </nav>
+
+  <div id="sidebar-bottom">
+    <div class="nav-item" data-page="settings">
+      <span class="nav-icon">⚙</span>
+      <span class="nav-label">Cài đặt</span>
+    </div>
+    <div id="sidebar-ws-status">
+      <div id="ws-dot"></div>
+      <span id="ws-label">Đang kết nối...</span>
+    </div>
+  </div>
+</aside>
+
+<div id="main-wrap">
+  <header id="topbar">
+    <div id="topbar-left">
+      <span id="page-title">Dashboard</span>
+      <span id="page-subtitle"></span>
+    </div>
+    <div id="topbar-center">
+      <div id="search-wrap">
+        <span>🔍</span>
+        <input type="text" id="global-search"
+          placeholder="Tìm kiếm cảnh báo, IP, người dùng...">
+      </div>
+    </div>
+    <div id="topbar-right">
+      <div id="live-indicator">
+        <span class="live-dot"></span>
+        <span id="last-update">—</span>
+      </div>
+      <button id="notif-btn" onclick="navigate('alerts')">
+        🔔 <span id="notif-count" class="notif-badge">0</span>
+      </button>
+      <button id="refresh-btn">↻ Làm mới</button>
+      <div id="user-avatar">
+        <div class="avatar-circle">A</div>
+        <span>analyst</span>
+      </div>
+    </div>
+  </header>
+
+  <div id="content-wrap">
 
 <!-- ══ PAGE: DASHBOARD ══════════════════════════════════════════ -->
 <div id="page-dashboard" class="page active">
@@ -138,105 +192,148 @@
 
 <!-- ══ PAGE: ALERTS ══════════════════════════════════════════════ -->
 <div id="page-alerts" class="page">
-  <!-- Timeline chart -->
-  <div class="card" style="margin-bottom:12px">
-    <div class="card-hdr">
-      <div>
-        <div class="card-hdr-title">Dòng thời gian cảnh báo</div>
-        <div class="card-hdr-sub">24h qua · mỗi 30 phút</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+    <div>
+      <h2 style="font-size:20px;font-weight:700;color:var(--text)">
+        Hàng đợi cảnh báo — SOC Level 1
+      </h2>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">
+        Cập nhật trực tiếp ·
+        <span id="aq-last-update" style="font-family:monospace">—</span>
       </div>
-      <select onchange="window.socCharts && window.socApi.timeline(parseInt(this.value)).then(d=>window.socCharts.updateTimeline(d))"
-        style="background:var(--bg-card);border:1px solid var(--border);color:var(--muted);
-               padding:5px 10px;border-radius:var(--r);font-size:11px;font-family:inherit">
-        <option value="6">6h</option><option value="24" selected>24h</option>
-        <option value="72">3d</option><option value="168">7d</option>
-      </select>
-    </div>
-    <div style="padding:12px 16px;height:180px"><canvas id="chart-timeline"></canvas></div>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-    <div class="card">
-      <div class="card-hdr"><div><div class="card-hdr-title">Phân loại mức độ</div></div></div>
-      <div style="padding:12px;height:180px"><canvas id="chart-sev"></canvas></div>
-    </div>
-    <div class="card">
-      <div class="card-hdr"><div><div class="card-hdr-title">IP tấn công nhiều nhất</div></div></div>
-      <div style="padding:12px" id="top-ips-list"><p style="color:var(--muted)">Đang tải…</p></div>
     </div>
   </div>
 
-  <!-- Wazuh table -->
+  <div id="aq-filter-bar" style="background:var(--bg-card);border:1px solid var(--border);
+    border-radius:var(--r2);padding:14px 16px;margin-bottom:14px;
+    display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Mức độ</span>
+      <div style="display:flex;gap:6px">
+        <button class="aq-filter-btn active" onclick="window.alertQueue.filterSev(null,this)">Tất cả</button>
+        <button class="aq-filter-btn" style="color:var(--red)" onclick="window.alertQueue.filterSev('critical',this)">Critical</button>
+        <button class="aq-filter-btn" style="color:var(--amber)" onclick="window.alertQueue.filterSev('high',this)">High</button>
+        <button class="aq-filter-btn" style="color:#ffcc00" onclick="window.alertQueue.filterSev('medium',this)">Medium</button>
+        <button class="aq-filter-btn" style="color:var(--green)" onclick="window.alertQueue.filterSev('low',this)">Low</button>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Thời gian</span>
+      <div style="display:flex;gap:6px">
+        <button class="aq-filter-btn" onclick="window.alertQueue.filterTime(1,this)">1 giờ</button>
+        <button class="aq-filter-btn active" onclick="window.alertQueue.filterTime(24,this)">24 giờ</button>
+        <button class="aq-filter-btn" onclick="window.alertQueue.filterTime(168,this)">7 ngày</button>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <span style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">Trạng thái</span>
+      <div style="display:flex;gap:6px">
+        <button class="aq-filter-btn active" onclick="window.alertQueue.filterStatus(null,this)">Tất cả</button>
+        <button class="aq-filter-btn" onclick="window.alertQueue.filterStatus('new',this)">Mới</button>
+        <button class="aq-filter-btn" onclick="window.alertQueue.filterStatus('assigned',this)">Đã giao</button>
+      </div>
+    </div>
+
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <input type="text" id="aq-search" placeholder="🔍 Tìm kiếm alert..."
+        oninput="window.alertQueue.search(this.value)"
+        style="background:var(--bg);border:1px solid var(--border);
+               color:var(--text);padding:7px 12px;border-radius:var(--r);
+               font-size:12px;font-family:inherit;outline:none;width:200px">
+    </div>
+  </div>
+
+  <div id="aq-bulk-bar" style="display:none;align-items:center;gap:10px;
+    padding:10px 14px;background:rgba(0,255,65,.05);
+    border:1px solid rgba(0,255,65,.2);border-radius:var(--r);margin-bottom:10px">
+    <span id="aq-bulk-count" style="font-size:12px;color:var(--green);
+      font-family:'Share Tech Mono',monospace">0 đã chọn</span>
+    <button onclick="window.alertQueue.bulkAction('assign')"
+      style="padding:5px 14px;background:var(--blue2);border:1px solid var(--blue);
+             border-radius:var(--r);color:var(--blue);font-size:11px;
+             font-weight:700;cursor:pointer">👤 Giao cho tôi</button>
+    <button onclick="window.alertQueue.bulkAction('investigate')"
+      style="padding:5px 14px;background:var(--green3);border:1px solid var(--green);
+             border-radius:var(--r);color:var(--green);font-size:11px;
+             font-weight:700;cursor:pointer">🔍 Điều tra</button>
+    <button onclick="window.alertQueue.bulkAction('false-positive')"
+      style="padding:5px 14px;background:var(--amber2);border:1px solid var(--amber);
+             border-radius:var(--r);color:var(--amber);font-size:11px;
+             font-weight:700;cursor:pointer">✗ False Positive</button>
+    <button onclick="window.alertQueue.bulkAction('escalate')"
+      style="padding:5px 14px;background:var(--red2);border:1px solid var(--red);
+             border-radius:var(--r);color:var(--red);font-size:11px;
+             font-weight:700;cursor:pointer">⬆ Leo thang</button>
+    <button onclick="window.alertQueue.clearBulk()"
+      style="padding:5px 12px;background:var(--bg-card);border:1px solid var(--border);
+             border-radius:var(--r);color:var(--muted);font-size:11px;cursor:pointer">✕</button>
+  </div>
+
   <div class="card" style="margin-bottom:12px">
     <div class="card-hdr">
       <div>
         <div class="card-hdr-title">Cảnh báo Wazuh SIEM / HIDS</div>
-        <div class="card-hdr-sub">24h qua · Nhấn "+ Vụ việc" để leo thang</div>
+        <div class="card-hdr-sub">
+          <span id="aq-showing">—</span>
+        </div>
       </div>
-      <select id="lv-filter" onchange="window.socApi.wazuhAlerts(200,parseInt(this.value)).then(d=>{window.socApp&&window.socApp.renderWazuh(d)})"
-        style="background:var(--bg-card);border:1px solid var(--border);color:var(--muted);
-               padding:5px 10px;border-radius:var(--r);font-size:11px;font-family:inherit">
-        <option value="1">Tất cả</option><option value="4">Trung bình+</option>
-        <option value="7">Cao+</option><option value="12">Nghiêm trọng</option>
+      <select id="aq-level-select" onchange="window.alertQueue.reload()"
+        style="background:var(--bg-card);border:1px solid var(--border);
+               color:var(--muted);padding:5px 10px;border-radius:var(--r);
+               font-size:11px;font-family:inherit">
+        <option value="1">Tất cả mức</option>
+        <option value="7">High+</option>
+        <option value="12">Critical</option>
       </select>
     </div>
-    <!-- Thanh chọn hàng loạt -->
-    <div id="bulk-toolbar"
-      style="display:none;align-items:center;gap:10px;padding:10px 16px;
-             background:rgba(0,255,65,.05);border:1px solid rgba(0,255,65,.2);
-             border-radius:var(--r);margin:8px 12px 10px">
-      <span id="bulk-count"
-        style="font-size:12px;color:var(--green);font-family:'Share Tech Mono',monospace">
-        0 alert được chọn
-      </span>
-      <button onclick="window.bulkCreateCases()"
-        style="padding:5px 14px;background:var(--green3);border:1px solid var(--green);
-               border-radius:var(--r);color:var(--green);font-size:11px;
-               font-weight:700;cursor:pointer">
-        ✚ Tạo case hàng loạt
-      </button>
-      <button onclick="window.clearBulkSelect()"
-        style="padding:5px 14px;background:var(--bg-card);border:1px solid var(--border);
-               border-radius:var(--r);color:var(--muted);font-size:11px;cursor:pointer">
-        Bỏ chọn tất cả
-      </button>
-      <span style="margin-left:auto;font-size:11px;color:var(--muted)">
-        Chỉ áp dụng cho Medium/Low — Critical tự động tạo case
-      </span>
-    </div>
     <div style="overflow-x:auto" id="tbl-wazuh">
-      <table class="soc-table">
+      <table class="soc-table" id="aq-table">
         <thead><tr>
           <th style="width:36px">
-            <input type="checkbox" id="check-all"
-              onchange="window.toggleAllAlerts(this.checked)"
+            <input type="checkbox" id="aq-check-all"
+              onchange="window.alertQueue.toggleAll(this.checked)"
               style="cursor:pointer">
           </th>
-          <th>Thời gian</th><th>Máy chủ</th><th>Quy tắc</th>
-          <th>Mức độ</th><th>IP nguồn</th><th>MITRE</th><th>Hành động</th>
+          <th>Alert ID</th>
+          <th>Quy tắc</th>
+          <th>Mức độ</th>
+          <th>Loại</th>
+          <th>Thời gian</th>
+          <th>Máy chủ</th>
+          <th>IP nguồn</th>
+          <th>MITRE</th>
+          <th>Trạng thái</th>
+          <th>Phân tích viên</th>
+          <th>Hành động</th>
         </tr></thead>
-        <tbody><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Đang tải…</td></tr></tbody>
+        <tbody id="aq-tbody">
+          <tr><td colspan="12" style="text-align:center;color:var(--muted);padding:24px">
+            Đang tải...
+          </td></tr>
+        </tbody>
       </table>
     </div>
     <div class="pag-wrap" id="wazuh-pag"></div>
   </div>
 
-  <!-- Suricata table -->
   <div class="card">
     <div class="card-hdr">
       <div>
         <div class="card-hdr-title">Cảnh báo Suricata IDS / NIDS</div>
-        <div class="card-hdr-sub">Chữ ký xâm nhập mạng · 24h qua</div>
+        <div class="card-hdr-sub">Chữ ký xâm nhập mạng · 24h gần nhất</div>
       </div>
     </div>
-    <div style="padding:12px;height:140px"><canvas id="chart-suri"></canvas></div>
     <div style="overflow-x:auto" id="tbl-suri">
       <table class="soc-table">
         <thead><tr>
           <th>Thời gian</th><th>Chữ ký</th><th>Mức độ</th>
           <th>IP nguồn</th><th>IP đích</th><th>Danh mục</th>
         </tr></thead>
-        <tbody><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Đang tải…</td></tr></tbody>
+        <tbody><tr><td colspan="6" style="text-align:center;
+          color:var(--muted);padding:24px">Đang tải...</td></tr></tbody>
       </table>
     </div>
     <div class="pag-wrap" id="suri-pag"></div>
@@ -374,6 +471,34 @@
   </div>
 </div>
 
+<div id="page-threat-intel" class="page">
+  <div class="card">
+    <div class="card-hdr">
+      <div>
+        <div class="card-hdr-title">Threat Intelligence</div>
+        <div class="card-hdr-sub">IOC enrichment · nguồn đe dọa bên ngoài</div>
+      </div>
+    </div>
+    <div style="padding:24px;color:var(--muted);font-size:13px">
+      Module Threat Intel đang sẵn sàng để tích hợp feed IOC, reputation lookup và enrichment pipeline.
+    </div>
+  </div>
+</div>
+
+<div id="page-hunting" class="page">
+  <div class="card">
+    <div class="card-hdr">
+      <div>
+        <div class="card-hdr-title">Threat Hunting</div>
+        <div class="card-hdr-sub">Pivot theo IP, tactic, timeline và hypothesis</div>
+      </div>
+    </div>
+    <div style="padding:24px;color:var(--muted);font-size:13px">
+      Không gian hunting dành cho truy vết nâng cao, pivot từ alert sang case và tương quan sự kiện.
+    </div>
+  </div>
+</div>
+
 <!-- ══ PAGE: AI ENGINE ═══════════════════════════════════════════ -->
 <div id="page-ai" class="page">
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
@@ -408,7 +533,22 @@
   </div>
 </div>
 
-</div><!-- /page-wrap -->
+<div id="page-settings" class="page">
+  <div class="card">
+    <div class="card-hdr">
+      <div>
+        <div class="card-hdr-title">Cài đặt hệ thống</div>
+        <div class="card-hdr-sub">Quản trị giao diện và kết nối nền tảng</div>
+      </div>
+    </div>
+    <div style="padding:24px;color:var(--muted);font-size:13px">
+      Khu vực cấu hình dành cho analyst profile, rule tuning, notification channel và kết nối data source.
+    </div>
+  </div>
+</div>
+
+</div><!-- /content-wrap -->
+</div><!-- /main-wrap -->
 </div><!-- /app -->
 
 <!-- ══ TRIAGE MODAL ═════════════════════════════════════════════ -->
@@ -505,39 +645,7 @@
 <script src="js/triage.js"></script>
 <script src="js/app.js"></script>
 <script>
-// Extra page-specific bindings
 document.addEventListener('DOMContentLoaded', ()=>{
-
-  // Cases page full list loader
-  window.socApp.loadAllCases = async function(status){
-    const el=document.getElementById('full-cases-list');
-    if(!el) return;
-    try{
-      const url='/api/cases/' + (status ? '?status='+encodeURIComponent(status)+'&limit=100' : '?limit=100');
-      const cases=await fetch(url).then(r=>r.json());
-      if(!cases.length){el.innerHTML='<div style="padding:24px;color:var(--muted);text-align:center">Không tìm thấy vụ việc</div>';return;}
-      const btnMap={'New':'triage','In Progress':'investigate','Escalated':'monitor','Resolved':'close','Closed':'close'};
-      const btnLabelMap={triage:'Phân loại',investigate:'Điều tra',assign:'Giao việc',monitor:'Theo dõi',close:'Đóng'};
-      el.innerHTML=cases.map(c=>{
-        const st=c.status.replace(' ','-').toLowerCase().replace('in-progress','progress');
-        const btn=btnMap[c.status]||'triage';
-        const sev=c.severity==='Critical'?'badge-critical':c.severity==='High'?'badge-high':c.severity==='Medium'?'badge-medium':'badge-low';
-        return `<div class="case-row" style="margin-bottom:6px">
-          <span class="case-id">${c.case_id}</span>
-          <span class="case-title" title="${c.title}">${c.title}</span>
-          <span class="badge ${sev}" style="margin-right:4px">${c.severity}</span>
-          <span class="case-status status-${st}">${c.status}</span>
-          <span style="font-size:10px;color:var(--muted);min-width:80px">${new Date(c.created_at*1000).toLocaleDateString('vi-VN')}</span>
-          <button class="case-btn ${btn}"
-            onclick="window.openCaseTriage(${JSON.stringify(c).replace(/"/g,'&quot;')})">
-            ${btnLabelMap[btn]||'Phân loại'}
-          </button>
-        </div>`;
-      }).join('');
-    }catch(e){toast('Lỗi tải vụ việc: '+e.message,'err');}
-  };
-
-  // AI page data binding
   document.addEventListener('soc:data', e=>{
     const d=e.detail;
     if(d.type!=='snapshot'||!d.ai_alerts) return;
@@ -564,45 +672,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
       </tr>`;
     }).join('');
   });
-
-  // Expose renderWazuh for filter
-  window.socApp.renderWazuh = function(alerts){
-    const tbody=document.querySelector('#tbl-wazuh tbody');
-    if(!tbody) return;
-    if(!alerts.length){tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Không có cảnh báo</td></tr>';return;}
-    const sevBadge=l=>{const n=parseInt(l)||0;return n>=12?'<span class="badge badge-critical">NGHIÊM TRỌNG</span>':n>=7?'<span class="badge badge-high">CAO</span>':n>=4?'<span class="badge badge-medium">TRUNG BÌNH</span>':'<span class="badge badge-low">THẤP</span>';};
-    tbody.innerHTML=alerts.map(a=>`<tr>
-      <td class="mono">${new Date(a['@timestamp']).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})}</td>
-      <td class="agent-name">${a?.agent?.name||'—'}</td>
-      <td title="${a?.rule?.description||''}" style="color:var(--text)">${(a?.rule?.description||'—').slice(0,48)}</td>
-      <td>${sevBadge(a?.rule?.level)}</td>
-      <td class="src">${a?.data?.src_ip||'—'}</td>
-      <td style="color:var(--purple);font-size:11px">${a?.rule?.mitre?.id?.[0]||'—'}</td>
-      <td><button class="btn-create-case" onclick='window.createCaseFromAlert(${JSON.stringify(a)})'>+ Vụ việc</button></td>
-    </tr>`).join('');
-  };
-
-  // MITRE page refresh on navigate
-  document.querySelector('[data-page="mitre"]')?.addEventListener('click', async ()=>{
-    try{
-      const m=await window.socApi.mitre();
-      window.renderMitreHeatmap && window.renderMitreHeatmap(m.techniques||[]);
-      window.socCharts.updateTacticsBar(m.tactics||[]);
-    }catch{}
-  });
-  window.renderMitreHeatmap = function(techniques){
-    const el=document.getElementById('mitre-grid');
-    if(!el) return;
-    if(!techniques.length){el.innerHTML='<p style="color:var(--muted);padding:12px">Chưa có dữ liệu MITRE</p>';return;}
-    const max=Math.max(...techniques.map(t=>t.count),1);
-    el.innerHTML=techniques.map(t=>{const r=t.count/max;const h=r>.75?'h4':r>.4?'h3':r>.15?'h2':'h1';
-      return `<div class="mitre-cell ${h}" title="${t.id}: ${t.count}"><div class="tech-id">${t.id}</div><div class="tech-cnt">${t.count}</div></div>`;
-    }).join('');
-  };
-
-  // Cases page load on navigate
-  document.querySelector('[data-page="cases"]')?.addEventListener('click', ()=>
-    window.socApp.loadAllCases(null));
 });
 </script>
 </body>
