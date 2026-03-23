@@ -24,6 +24,18 @@ let selectedClass  = null;
 let selectedReasons = new Set();
 let selectedMitre  = new Set();
 let selectedImpact = 'Medium';
+let _shouldEscalate = false;
+
+function _renderEscalate(){
+  const box = document.getElementById('escalate-box');
+  const item = document.getElementById('escalate-check');
+  if (box) box.innerHTML = _shouldEscalate ? '✓' : '';
+  if (item) {
+    item.classList.toggle('checked', _shouldEscalate);
+    item.style.background = _shouldEscalate
+      ? 'rgba(255,153,0,.12)' : 'rgba(255,153,0,.05)';
+  }
+}
 
 function openModal(caseData){
   currentCaseId    = caseData.case_id || caseData.id;
@@ -31,6 +43,7 @@ function openModal(caseData){
   selectedReasons  = new Set();
   selectedMitre    = new Set();
   selectedImpact   = 'Medium';
+  _shouldEscalate  = false;
 
   // Fill case info bar
   document.getElementById('modal-case-id').textContent   = currentCaseId || '—';
@@ -42,6 +55,7 @@ function openModal(caseData){
   renderMitre();
   renderImpact();
   clearTextareas();
+  _renderEscalate();
 
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -115,6 +129,7 @@ async function submitTriage(){
     analysis:       document.getElementById('analysis-text').value.trim(),
     recommendation: document.getElementById('rec-text').value.trim(),
     analyst:        'analyst',
+    should_escalate: _shouldEscalate,
   };
 
   try {
@@ -166,6 +181,10 @@ window.triageToggleReason = function(r){
 window.triageToggleMitre = function(t){
   selectedMitre.has(t) ? selectedMitre.delete(t) : selectedMitre.add(t);
   renderMitre();
+};
+window.triageToggleEscalate = function() {
+  _shouldEscalate = !_shouldEscalate;
+  _renderEscalate();
 };
 window.triageSubmit   = submitTriage;
 window.triageClose    = closeModal;

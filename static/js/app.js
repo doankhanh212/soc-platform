@@ -73,7 +73,7 @@ window.renderWazuhPage = function(page){
   const slice = _wazuhAll.slice((_wazuhPage - 1) * PAGE_SIZE, _wazuhPage * PAGE_SIZE);
   renderAlertsTable(slice);
   _renderPag('wazuh-pag', _wazuhPage, _wazuhAll.length, 'renderWazuhPage');
-  document.getElementById('tbl-wazuh')?.scrollIntoView({behavior:'smooth',block:'start'});
+  document.getElementById('page-alerts')?.scrollTo({top: 0, behavior: 'smooth'});
 };
 
 window.renderSuriPage = function(page){
@@ -81,7 +81,7 @@ window.renderSuriPage = function(page){
   const slice = _suriAll.slice((_suriPage - 1) * PAGE_SIZE, _suriPage * PAGE_SIZE);
   renderSuriTable(slice);
   _renderPag('suri-pag', _suriPage, _suriAll.length, 'renderSuriPage');
-  document.getElementById('tbl-suri')?.scrollIntoView({behavior:'smooth',block:'start'});
+  document.getElementById('page-alerts')?.scrollTo({top: 0, behavior: 'smooth'});
 };
 
 /* ── Navigation ─────────────────────────────────── */
@@ -518,6 +518,15 @@ let _filtered = [];
 let _activeFilter = null;
 let _selectedCaseId = null;
 let _activeDetailTab = 'overview';
+let _bulkSelected = new Set();
+
+function _updateBulkBar() {
+  const n = _bulkSelected.size;
+  const tb = document.getElementById('case-bulk-toolbar');
+  const ct = document.getElementById('case-bulk-count');
+  if (tb) tb.style.display = n > 0 ? 'flex' : 'none';
+  if (ct) ct.textContent = `${n} vụ việc được chọn`;
+}
 
 // ── Helpers ──────────────────────────────────────────
 function _sevClass(sev){
@@ -529,7 +538,7 @@ function _statusBadge(s){
     'New':'<span class="badge b-new">Mới</span>',
     'In Progress':'<span class="badge b-prog">Đang xử lý</span>',
     'Escalated':'<span class="badge b-esc">Leo thang</span>',
-    'Resolved':'<span class="badge b-done">Đã giải quyết</span>',
+    'Resolved':'<span class="badge b-done">Đã phân loại</span>',
     'Closed':'<span class="badge" style="background:rgba(60,60,60,.3);color:#666">Đóng</span>',
   };
   return m[s]||`<span class="badge">${s}</span>`;
@@ -562,9 +571,12 @@ async function loadAll(){
   try{
     const res = await fetch('/api/cases/?limit=200');
     _allCases = await res.json();
+    const ids = new Set(_allCases.map(c => c.case_id));
+    _bulkSelected = new Set([..._bulkSelected].filter(id => ids.has(id)));
     if (!_activeFilter) _activeFilter = 'New';
     _applyFilter();
     _updateStats();
+    _updateBulkBar();
   }catch(e){ window.toast('Lỗi tải vụ việc: '+e.message,'err'); }
 }
 
@@ -615,6 +627,7 @@ function _applyFilter(q){
 function renderList(){
   const wrap = document.getElementById('cases-list-full');
   if(!wrap) return;
+  _updateBulkBar();
   if(!_filtered.length){
     wrap.innerHTML=`<div style="padding:40px;text-align:center;color:var(--muted)">
       <div style="font-size:28px;opacity:.3;margin-bottom:10px">🗂</div>
@@ -632,6 +645,11 @@ function renderList(){
     return `<div class="case-card ${_sevClass(c.severity)} ${_selectedCaseId===c.case_id?'selected':''}"
       onclick="window.casesApp.select('${c.case_id}')">
       <div class="case-top">
+        <input type="checkbox" class="case-cb"
+          ${_bulkSelected.has(c.case_id) ? 'checked' : ''}
+          onchange="window.casesApp.toggleBulk(event,'${c.case_id}')"
+          onclick="event.stopPropagation()"
+          style="cursor:pointer;margin-right:4px;flex-shrink:0">
         <span class="case-id-lbl">${c.case_id}</span>
         <span class="case-title-lbl" title="${c.title}">${c.title}</span>
         ${_statusBadge(c.status)}
@@ -748,6 +766,12 @@ function renderDetailPanel(c){
           ${l.recommendation?`<div style="font-size:11px;color:var(--muted);
             border-top:1px solid var(--border);padding-top:6px;margin-top:4px">
             💡 ${l.recommendation}</div>`:''}
+          <button onclick="window.casesApp.deleteTriageLog('${c.case_id}')"
+            style="margin-top:8px;padding:4px 12px;background:rgba(255,51,51,.1);
+                   border:1px solid rgba(255,51,51,.3);border-radius:var(--r);
+                   color:var(--red);font-size:11px;cursor:pointer;width:100%">
+            🗑 Xóa phân loại này — reset về Mới
+          </button>
         </div>`).join('');
     }
   }
@@ -828,6 +852,66 @@ async function closeCase(caseId){
   }catch(e){ window.toast('Lỗi: '+e.message,'err'); }
 }
 
+function toggleBulk(e, caseId) {
+  e.stopPropagation();
+  _bulkSelected.has(caseId) ? _bulkSelected.delete(caseId) : _bulkSelected.add(caseId);
+  _updateBulkBar();
+}
+
+function clearBulk() {
+  _bulkSelected.clear();
+  _updateBulkBar();
+  renderList();
+}
+
+async function bulkTriage() {
+  const ids = [..._bulkSelected];
+  if (!ids.length) return;
+  const classification = prompt(
+    `Phân loại ${ids.length} vụ việc:\n` +
+    `1. Mối đe dọa thực\n2. Báo động nhầm\n3. Vô hại\n` +
+    `Nhập số (1/2/3):`
+  );
+  const map = {'1':'True Positive','2':'False Positive','3':'Benign'};
+  const cls = map[classification?.trim()];
+  if (!cls) { window.toast('Huỷ phân loại hàng loạt', 'warn'); return; }
+
+  let ok = 0;
+  for (const id of ids) {
+    try {
+      await fetch(`/api/cases/${encodeURIComponent(id)}/triage`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          classification: cls,
+          reasons: [],
+          mitre_mapping: [],
+          impact_level: 'Medium',
+          analysis: 'Phân loại hàng loạt',
+          recommendation: '',
+          analyst: 'analyst',
+        }),
+      });
+      ok++;
+    } catch {}
+  }
+  window.toast(`✓ Đã phân loại ${ok}/${ids.length} vụ việc`, 'ok');
+  _bulkSelected.clear();
+  await loadAll();
+}
+
+async function deleteTriageLog(caseId) {
+  if (!confirm(`Xóa phân loại của ${caseId}?\nCase sẽ reset về trạng thái Mới.`)) return;
+  try {
+    await window.socApi.deleteTriage(caseId);
+    window.toast(`Đã xóa phân loại ${caseId}`, 'ok');
+    await loadAll();
+    selectCase(caseId);
+  } catch(e) {
+    window.toast('Lỗi xóa: ' + e.message, 'err');
+  }
+}
+
 // ── Navigate to cases page → auto load ───────────────
 document.querySelector('[data-page="cases"]')
   ?.addEventListener('click', ()=> loadAll());
@@ -841,6 +925,10 @@ window.casesApp = {
   tab: switchDetailTab,
   assign: assignCase,
   close: closeCase,
+  toggleBulk,
+  clearBulk,
+  bulkTriage,
+  deleteTriageLog,
 };
 
 // Override cũ nếu có

@@ -114,11 +114,12 @@ def update_case_status(case_id: str, status: str, assignee: str = None) -> dict:
 def submit_triage(case_id: str, classification: str, reasons: list,
                   mitre_mapping: list, impact_level: str,
                   analysis: str, recommendation: str,
-                  analyst: str = "analyst") -> dict:
+                  analyst: str = "analyst",
+                  should_escalate: bool = False) -> dict:
     now = time.time()
-    # Mọi classification đều đóng case
-    new_status = "Resolved"
-    closed_at  = now
+    # Nếu should_escalate → status = Escalated thay vì Resolved
+    new_status = "Escalated" if should_escalate else "Resolved"
+    closed_at  = None if should_escalate else now
     with _conn() as c:
         c.execute("""
             INSERT INTO triage_log (case_id,classification,reasons,mitre_mapping,

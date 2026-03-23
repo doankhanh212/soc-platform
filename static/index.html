@@ -261,7 +261,7 @@
     </div>
     <div class="cs-stat">
       <div class="cs-stat-num" style="color:var(--green)" id="cs-stat-done">0</div>
-      <div class="cs-stat-lbl">Đã giải quyết</div>
+      <div class="cs-stat-lbl">Đã phân loại</div>
     </div>
     <div class="cs-stat">
       <div class="cs-stat-num" style="color:var(--purple)" id="cs-stat-triaged">0</div>
@@ -277,7 +277,7 @@
       onclick="window.casesApp.filter('In Progress',this)">Đang xử lý</button>
     <button class="filter-btn" style="color:var(--red)"
       onclick="window.casesApp.filter('Escalated',this)">Leo thang</button>
-    <button class="filter-btn" onclick="window.casesApp.filter('Resolved',this)">Đã giải quyết</button>
+    <button class="filter-btn" onclick="window.casesApp.filter('Resolved',this)">Đã phân loại</button>
     <input id="case-search" type="text" placeholder="🔍 Tìm vụ việc, IP, rule..."
       oninput="window.casesApp.search(this.value)"
       style="margin-left:auto;background:var(--bg-card);border:1px solid var(--border);
@@ -293,6 +293,25 @@
   <div class="cases-layout">
     <!-- Left: danh sách -->
     <div>
+      <div id="case-bulk-toolbar" style="display:none;align-items:center;gap:10px;
+        padding:10px 14px;background:rgba(0,255,65,.05);border:1px solid rgba(0,255,65,.2);
+        border-radius:var(--r);margin-bottom:10px">
+        <span id="case-bulk-count"
+          style="font-size:12px;color:var(--green);font-family:'Share Tech Mono',monospace">
+          0 vụ việc được chọn
+        </span>
+        <button onclick="window.casesApp.bulkTriage()"
+          style="padding:5px 14px;background:var(--green3);border:1px solid var(--green);
+                 border-radius:var(--r);color:var(--green);font-size:11px;
+                 font-weight:700;cursor:pointer">
+          🛡 Phân loại hàng loạt
+        </button>
+        <button onclick="window.casesApp.clearBulk()"
+          style="padding:5px 14px;background:var(--bg-card);border:1px solid var(--border);
+                 border-radius:var(--r);color:var(--muted);font-size:11px;cursor:pointer">
+          Bỏ chọn
+        </button>
+      </div>
       <div id="cases-list-full" style="max-height:calc(100vh - 280px);overflow-y:auto">
         <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">
           Đang tải vụ việc...
@@ -429,6 +448,24 @@
         <option value="High">Cao (Đỏ)</option>
         <option value="Critical">Nghiêm trọng</option>
       </select>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Đánh giá leo thang</label>
+      <div class="check-item" id="escalate-check"
+        onclick="window.triageToggleEscalate()"
+        style="border-color:rgba(255,153,0,.3);background:rgba(255,153,0,.05)">
+        <div class="check-box" id="escalate-box"></div>
+        <div>
+          <div class="check-label" style="color:var(--amber);font-weight:600">
+            ⚠ Có khả năng leo thang
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">
+            Tick vào nếu alert này cần chuyển sang trạng thái Leo thang
+            để ưu tiên xử lý khẩn cấp
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="form-group">

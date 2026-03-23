@@ -29,4 +29,8 @@ window.socApi={
   createCase:      (body)   => _post('/api/cases/',body),
   updateStatus:    (id,status,assignee='') => _patch(`/api/cases/${encodeURIComponent(id)}/status`,{status,assignee}),
   submitTriage:    (id,body)=> _post(`/api/cases/${encodeURIComponent(id)}/triage`,body),
+  deleteTriage:    (id) => {
+    return fetch(`/api/cases/${encodeURIComponent(id)}/triage`, {method:'DELETE'})
+      .then(r => { if(!r.ok) throw new Error(r.status); return r.json(); });
+  },
 };

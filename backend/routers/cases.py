@@ -29,6 +29,7 @@ class TriageSubmit(BaseModel):
     analysis: str = ""
     recommendation: str = ""
     analyst: str = "analyst"
+    should_escalate: bool = False
 
 @router.get("/stats")
 def get_stats():
@@ -77,7 +78,23 @@ def patch_status(case_id: str, body: StatusUpdate):
 @router.post("/{case_id}/triage")
 def triage(case_id: str, body: TriageSubmit):
     if not get_case(case_id): raise HTTPException(404, "Case not found")
-    return submit_triage(case_id, **body.dict())
+    return submit_triage(case_id, **{**body.dict(),
+                                     'should_escalate': body.should_escalate})
+
+@router.delete("/{case_id}/triage")
+def delete_triage(case_id: str):
+    """Xóa toàn bộ triage log và reset case về New."""
+    if not get_case(case_id):
+        raise HTTPException(404, "Case not found")
+    from services.cases import _conn
+    import time
+    with _conn() as c:
+        c.execute("DELETE FROM triage_log WHERE case_id=?", (case_id,))
+        c.execute(
+            "UPDATE cases SET status='New', closed_at=NULL, updated_at=? WHERE case_id=?",
+            (time.time(), case_id)
+        )
+    return {"status": "ok", "message": f"Đã xóa phân loại của {case_id}"}
 
 @router.get("/{case_id}/triage")
 def triage_log(case_id: str):
