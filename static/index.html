@@ -85,10 +85,10 @@
         <div class="card-opts"><span title="options">···</span></div>
       </div>
       <div id="map-wrap">
-        <canvas id="world-canvas"></canvas>
-        <div class="map-legend">
-          <div class="map-legend-item"><div class="dot hotspot"></div>Điểm tấn công nóng</div>
-          <div class="map-legend-item"><div class="line"></div>Kết nối trực tiếp</div>
+          <div id="geo-attack-table"
+            style="padding:12px 14px;height:232px;overflow-y:auto">
+            <div style="color:var(--muted);font-size:12px;text-align:center;
+              padding:20px">Đang tải dữ liệu tấn công...</div>
         </div>
       </div>
     </div>
@@ -189,6 +189,7 @@
         <tbody><tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Đang tải…</td></tr></tbody>
       </table>
     </div>
+    <div class="pag-wrap" id="wazuh-pag"></div>
   </div>
 
   <!-- Suricata table -->
@@ -209,31 +210,80 @@
         <tbody><tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px">Đang tải…</td></tr></tbody>
       </table>
     </div>
+    <div class="pag-wrap" id="suri-pag"></div>
   </div>
 </div>
 
 <!-- ══ PAGE: CASES ═══════════════════════════════════════════════ -->
 <div id="page-cases" class="page">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-    <div style="display:flex;gap:8px">
-      <button onclick="window.socApp.loadAllCases(null)"
-        style="padding:7px 16px;background:var(--bg-card);border:1px solid var(--border);
-               border-radius:var(--r);color:var(--text);cursor:pointer;font-family:inherit;font-size:12px">Tất cả</button>
-      <button onclick="window.socApp.loadAllCases('New')"
-        style="padding:7px 16px;background:var(--bg-card);border:1px solid var(--border);
-               border-radius:var(--r);color:var(--blue);cursor:pointer;font-family:inherit;font-size:12px">Mới</button>
-      <button onclick="window.socApp.loadAllCases('In Progress')"
-        style="padding:7px 16px;background:var(--bg-card);border:1px solid var(--border);
-               border-radius:var(--r);color:var(--amber);cursor:pointer;font-family:inherit;font-size:12px">Đang xử lý</button>
-      <button onclick="window.socApp.loadAllCases('Escalated')"
-        style="padding:7px 16px;background:var(--bg-card);border:1px solid var(--border);
-               border-radius:var(--r);color:var(--red);cursor:pointer;font-family:inherit;font-size:12px">Leo thang</button>
+  <!-- Stats 5 ô -->
+  <div class="cases-stats">
+    <div class="cs-stat">
+      <div class="cs-stat-num red" id="cs-stat-esc">0</div>
+      <div class="cs-stat-lbl">Leo thang</div>
+    </div>
+    <div class="cs-stat">
+      <div class="cs-stat-num amber" id="cs-stat-prog">0</div>
+      <div class="cs-stat-lbl">Đang xử lý</div>
+    </div>
+    <div class="cs-stat">
+      <div class="cs-stat-num" style="color:var(--blue)" id="cs-stat-new">0</div>
+      <div class="cs-stat-lbl">Mới</div>
+    </div>
+    <div class="cs-stat">
+      <div class="cs-stat-num green" id="cs-stat-done">0</div>
+      <div class="cs-stat-lbl">Đã giải quyết</div>
+    </div>
+    <div class="cs-stat">
+      <div class="cs-stat-num" style="color:var(--purple)" id="cs-stat-triaged">0</div>
+      <div class="cs-stat-lbl">Phân loại hôm nay</div>
     </div>
   </div>
-  <div class="card">
-    <div class="card-hdr"><div class="card-hdr-title">Quản lý vụ việc</div></div>
-    <div id="full-cases-list" style="padding:8px">
-      <div style="padding:16px;color:var(--muted);text-align:center">Đang tải…</div>
+
+  <!-- Toolbar -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="filter-btn active" onclick="window.casesApp.filter(null,this)">Tất cả</button>
+    <button class="filter-btn" onclick="window.casesApp.filter('New',this)">Mới</button>
+    <button class="filter-btn" style="color:var(--amber)"
+      onclick="window.casesApp.filter('In Progress',this)">Đang xử lý</button>
+    <button class="filter-btn" style="color:var(--red)"
+      onclick="window.casesApp.filter('Escalated',this)">Leo thang</button>
+    <button class="filter-btn" onclick="window.casesApp.filter('Resolved',this)">Đã giải quyết</button>
+    <input id="case-search" type="text" placeholder="🔍 Tìm vụ việc, IP, rule..."
+      oninput="window.casesApp.search(this.value)"
+      style="margin-left:auto;background:var(--bg-card);border:1px solid var(--border);
+             color:var(--text);padding:6px 12px;border-radius:var(--r);font-size:12px;
+             font-family:inherit;outline:none;width:240px">
+    <button onclick="window.triageOpenModal({case_id:'NEW',title:'',src_ip:'',rule_desc:''})"
+      style="padding:6px 16px;background:var(--green3);border:1px solid var(--green);
+             border-radius:var(--r);color:var(--green);font-size:11px;
+             font-weight:700;cursor:pointer">+ Tạo vụ việc</button>
+  </div>
+
+  <!-- 2-column layout -->
+  <div class="cases-layout">
+    <!-- Left: danh sách -->
+    <div>
+      <div id="cases-list-full" style="max-height:calc(100vh - 280px);overflow-y:auto">
+        <div style="padding:24px;text-align:center;color:var(--muted);font-size:12px">
+          Đang tải vụ việc...
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: detail panel -->
+    <div class="detail-panel" id="case-detail-panel">
+      <div class="detail-hdr">
+        <span class="detail-hdr-title" id="detail-case-id">Chọn vụ việc để xem chi tiết</span>
+      </div>
+      <div id="case-detail-body">
+        <div class="no-case-selected">
+          <div class="no-case-icon">📋</div>
+          <div class="no-case-hint">
+            Nhấn vào một vụ việc bên trái<br>để xem chi tiết và thực hiện phân loại
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -248,6 +298,30 @@
     <div class="card">
       <div class="card-hdr"><div class="card-hdr-title">Phân bổ chiến thuật</div></div>
       <div style="padding:12px;height:300px"><canvas id="chart-tactics"></canvas></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <div class="card-hdr">
+      <div>
+        <div class="card-hdr-title">Chi tiết kỹ thuật tấn công</div>
+        <div class="card-hdr-sub">Tần suất · Chiến thuật · Alert gần nhất</div>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="mitre-detail-table" id="mitre-detail-tbl">
+        <thead><tr>
+          <th>Kỹ thuật</th>
+          <th>Chiến thuật</th>
+          <th>Số lần phát hiện</th>
+          <th>Tần suất</th>
+          <th>Alert gần nhất</th>
+        </tr></thead>
+        <tbody>
+          <tr><td colspan="5" style="text-align:center;color:var(--muted);padding:20px">
+            Đang tải...
+          </td></tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </div>
@@ -362,7 +436,6 @@
 <script src="js/api.js"></script>
 <script src="js/ws.js"></script>
 <script src="js/charts.js"></script>
-<script src="js/map.js"></script>
 <script src="js/triage.js"></script>
 <script src="js/app.js"></script>
 <script>
