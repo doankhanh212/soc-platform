@@ -1433,3 +1433,265 @@ document.addEventListener('DOMContentLoaded', () => {
     clearBulk, bulkAction, investigate, markFP
   };
 })();
+
+/* ═════════════════════════════════════════════════════════════════
+   THREAT HUNTING PAGE
+   ═════════════════════════════════════════════════════════════════ */
+(function(){
+  let _results = [];
+  let _expandedRows = new Set();
+
+  function _sevClass(lv){
+    const n=parseInt(lv)||0;
+    if(n>=12)return'critical';if(n>=7)return'high';
+    if(n>=4)return'medium';return'low';
+  }
+  const _sevColors={
+    critical:'var(--red)',high:'var(--amber)',
+    medium:'#ffcc00',low:'var(--green)'
+  };
+  const _sevLabels={
+    critical:'NGHIÊM TRỌNG',high:'CAO',
+    medium:'TRUNG BÌNH',low:'THẤP'
+  };
+  function _fmtTs(iso){
+    if(!iso)return'—';
+    const d=new Date(iso);
+    return d.toLocaleDateString('vi-VN')+' '+
+           d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  }
+
+  async function search(){
+    const q      = document.getElementById('hunt-query')?.value?.trim()||'';
+    const hours  = document.getElementById('hunt-hours')?.value||24;
+    const agent  = document.getElementById('hunt-agent')?.value?.trim()||'';
+    const src_ip = document.getElementById('hunt-ip')?.value?.trim()||'';
+    const rule_id= document.getElementById('hunt-ruleid')?.value?.trim()||'';
+    const level  = document.getElementById('hunt-level')?.value||1;
+    const size   = document.getElementById('hunt-size')?.value||100;
+
+    // Show loading
+    const infoEl = document.getElementById('hunt-result-info');
+    const tableEl= document.getElementById('hunt-table');
+    const emptyEl= document.getElementById('hunt-empty');
+    if(infoEl) infoEl.textContent = '⏳ Đang tìm kiếm...';
+    if(tableEl) tableEl.style.display='none';
+    if(emptyEl) emptyEl.style.display='none';
+
+    try {
+      const [data, stats] = await Promise.all([
+        window.socApi.hunt({q, hours, agent, src_ip,
+          rule_id, min_level: level, size}),
+        window.socApi.huntStats({q, hours}),
+      ]);
+
+      _results = data.results || [];
+
+      // Update info
+      if(infoEl) infoEl.textContent =
+        `${data.total.toLocaleString()} kết quả · ` +
+        `Hiển thị ${_results.length} · ` +
+        `${data.took_ms}ms`;
+
+      // Show/hide export
+      const exportBtn = document.getElementById('hunt-export-btn');
+      if(exportBtn) exportBtn.style.display = _results.length?'block':'none';
+
+      // Render stats
+      renderStats(stats);
+
+      // Render table
+      if(!_results.length){
+        if(emptyEl){
+          emptyEl.innerHTML=`<div style="font-size:28px;margin-bottom:12px;opacity:.3">🔍</div>
+            <div style="font-size:14px">Không tìm thấy kết quả</div>
+            <div style="font-size:12px;margin-top:6px;color:var(--muted)">
+              Thử thay đổi bộ lọc hoặc mở rộng thời gian tìm kiếm
+            </div>`;
+          emptyEl.style.display='block';
+        }
+      } else {
+        renderTable();
+        if(tableEl) tableEl.style.display='table';
+      }
+    } catch(e) {
+      if(infoEl) infoEl.textContent='❌ Lỗi: '+e.message;
+      window.toast?.('Tìm kiếm thất bại: '+e.message,'err');
+    }
+  }
+
+  function renderStats(stats){
+    const row = document.getElementById('hunt-stats-row');
+    if(row) row.style.display='block';
+
+    const renderList = (containerId, items, keyField, valField) => {
+      const el = document.getElementById(containerId);
+      if(!el) return;
+      if(!items.length){
+        el.innerHTML='<div style="color:var(--muted);font-size:12px">Không có data</div>';
+        return;
+      }
+      const max = items[0][valField]||1;
+      el.innerHTML = items.map(item=>`
+        <div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;
+            font-size:11px;margin-bottom:3px">
+            <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;
+              white-space:nowrap;max-width:70%"
+              title="${item[keyField]}">${item[keyField]}</span>
+            <span style="color:var(--muted);font-family:monospace">
+              ${item[valField].toLocaleString()}
+            </span>
+          </div>
+          <div style="height:3px;background:rgba(0,255,65,.08);
+            border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${(item[valField]/max*100).toFixed(1)}%;
+              background:var(--green);border-radius:2px"></div>
+          </div>
+        </div>`).join('');
+    };
+
+    renderList('hunt-stat-agents', stats.top_agents, 'name',  'count');
+    renderList('hunt-stat-rules',  stats.top_rules,  'rule',  'count');
+    renderList('hunt-stat-ips',    stats.top_ips,    'ip',    'count');
+  }
+
+  function renderTable(){
+    const tbody = document.getElementById('hunt-tbody');
+    if(!tbody) return;
+    _expandedRows.clear();
+
+    tbody.innerHTML = _results.map((a,i)=>{
+      const lv   = parseInt(a?.rule?.level)||0;
+      const sev  = _sevClass(lv);
+      const col  = _sevColors[sev];
+      const src  = a?.data?.src_ip||a?.data?.srcip||'—';
+      const dst  = a?.data?.dest_ip||'—';
+      const mitre= a?.rule?.mitre?.id?.[0]||'—';
+      const geo  = a?.GeoLocation?.country_name||'—';
+      return `
+        <tr class="hunt-row" style="cursor:pointer"
+          onclick="window.huntApp.toggleRow(${i})">
+          <td style="padding:8px;text-align:center;color:var(--muted)">
+            <span id="hunt-expand-${i}">▶</span>
+          </td>
+          <td class="mono" style="font-size:11px;white-space:nowrap">
+            ${_fmtTs(a['@timestamp'])}
+          </td>
+          <td style="color:var(--green)">${a?.agent?.name||'—'}</td>
+          <td style="max-width:220px;overflow:hidden;
+            text-overflow:ellipsis;white-space:nowrap;color:var(--text)"
+            title="${a?.rule?.description||''}">
+            ${(a?.rule?.description||'—').slice(0,40)}
+          </td>
+          <td>
+            <span style="background:${col}22;color:${col};
+              border:1px solid ${col}55;padding:2px 8px;
+              border-radius:3px;font-size:10px;font-weight:700">
+              ${_sevLabels[sev]}
+            </span>
+          </td>
+          <td class="mono" style="color:var(--cyan);font-size:11px">${src}</td>
+          <td class="mono" style="color:var(--muted);font-size:11px">${dst}</td>
+          <td style="color:var(--purple);font-family:monospace;font-size:11px">
+            ${mitre}
+          </td>
+          <td style="font-size:11px;color:var(--muted)">${geo}</td>
+          <td>
+            <button onclick="event.stopPropagation();
+              window.createCaseFromAlert(${JSON.stringify(a).replace(/"/g,'&quot;')})"
+              class="btn-create-case">+ Vụ việc</button>
+          </td>
+        </tr>
+        <tr id="hunt-detail-${i}" style="display:none">
+          <td colspan="10" style="padding:0">
+            <div style="background:var(--bg);border:1px solid var(--border);
+              border-radius:var(--r);margin:4px 8px 8px;padding:14px;
+              font-family:monospace;font-size:11px;color:var(--text);
+              white-space:pre-wrap;overflow-x:auto;max-height:300px;
+              overflow-y:auto;line-height:1.6">
+${JSON.stringify(a, null, 2)}
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  function toggleRow(i){
+    const detailEl = document.getElementById(`hunt-detail-${i}`);
+    const expandEl = document.getElementById(`hunt-expand-${i}`);
+    if(!detailEl) return;
+    const isOpen = detailEl.style.display !== 'none';
+    detailEl.style.display = isOpen ? 'none' : 'table-row';
+    if(expandEl) expandEl.textContent = isOpen ? '▶' : '▼';
+  }
+
+  function reset(){
+    document.getElementById('hunt-query').value  = '';
+    document.getElementById('hunt-agent').value  = '';
+    document.getElementById('hunt-ip').value     = '';
+    document.getElementById('hunt-ruleid').value = '';
+    document.getElementById('hunt-hours').value  = '24';
+    document.getElementById('hunt-level').value  = '1';
+    document.getElementById('hunt-size').value   = '100';
+    _results = [];
+    const tableEl = document.getElementById('hunt-table');
+    const emptyEl = document.getElementById('hunt-empty');
+    const infoEl  = document.getElementById('hunt-result-info');
+    const statsRow= document.getElementById('hunt-stats-row');
+    if(tableEl)  tableEl.style.display='none';
+    if(statsRow) statsRow.style.display='none';
+    if(infoEl)   infoEl.textContent='Nhập từ khóa và nhấn Tìm kiếm';
+    if(emptyEl){
+      emptyEl.innerHTML=`<div style="font-size:32px;margin-bottom:12px;opacity:.3">🔍</div>
+        <div style="font-size:14px">Chưa có kết quả</div>
+        <div style="font-size:12px;margin-top:6px">
+          Nhập từ khóa hoặc bộ lọc rồi nhấn Tìm kiếm
+        </div>`;
+      emptyEl.style.display='block';
+    }
+  }
+
+  function exportCSV(){
+    if(!_results.length) return;
+    const headers = ['Thời gian','Agent','Rule','Level','IP nguồn','IP đích','MITRE','Quốc gia'];
+    const rows = _results.map(a=>[
+      a['@timestamp']||'',
+      a?.agent?.name||'',
+      (a?.rule?.description||'').replace(/,/g,';'),
+      a?.rule?.level||'',
+      a?.data?.src_ip||a?.data?.srcip||'',
+      a?.data?.dest_ip||'',
+      a?.rule?.mitre?.id?.[0]||'',
+      a?.GeoLocation?.country_name||'',
+    ].join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = `soc-hunt-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    window.toast?.('Đã export CSV','ok');
+  }
+
+  // Quick hunt từ sidebar
+  window.quickHunt = function(type, value){
+    navigate('hunting');
+    setTimeout(()=>{
+      if(type==='ip'){
+        document.getElementById('hunt-ip').value=value;
+      } else if(type==='agent'){
+        document.getElementById('hunt-agent').value=value;
+      } else if(type==='rule'){
+        document.getElementById('hunt-ruleid').value=value;
+      } else {
+        document.getElementById('hunt-query').value=value;
+      }
+      search();
+    }, 200);
+  };
+
+  window.huntApp = { search, reset, toggleRow, exportCSV };
+})();

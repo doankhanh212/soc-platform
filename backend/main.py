@@ -7,6 +7,7 @@ from routers.api import alerts_router, stats_router, response_router
 from routers.cases import router as cases_router
 from routers.rules import router as rules_router
 from routers.auth import router as auth_router
+from routers.hunting import router as hunting_router
 from routers.ws import ws_endpoint, broadcast_loop
 from services.rule_engine import rule_engine_loop
 
@@ -31,6 +32,7 @@ app.include_router(response_router)
 app.include_router(cases_router)
 app.include_router(rules_router)
 app.include_router(auth_router)
+app.include_router(hunting_router)
 app.include_router(rules_router)
 
 @app.websocket("/ws")

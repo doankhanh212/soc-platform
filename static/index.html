@@ -603,15 +603,175 @@
 </div>
 
 <div id="page-hunting" class="page">
+
+  <!-- Search bar lớn -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="card-body">
+      <div style="font-size:11px;color:var(--muted);
+        text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">
+        Advanced SIEM Query
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:12px">
+        <div style="flex:1;display:flex;align-items:center;gap:8px;
+          background:var(--bg);border:1px solid var(--border2);
+          border-radius:var(--r);padding:10px 14px;
+          transition:border-color .15s"
+          onfocus-within="this.style.borderColor='var(--green)'">
+          <span style="color:var(--muted);font-size:14px">🔍</span>
+          <input type="text" id="hunt-query"
+            placeholder='Tìm kiếm: "SSH brute force", IP, rule ID, agent...'
+            style="flex:1;background:none;border:none;outline:none;
+                   color:var(--text);font-size:14px;font-family:inherit"
+            onkeydown="if(event.key==='Enter')window.huntApp.search()">
+        </div>
+        <button onclick="window.huntApp.search()"
+          style="padding:10px 24px;background:var(--green3);
+                 border:1px solid var(--green);border-radius:var(--r);
+                 color:var(--green);font-size:13px;font-weight:700;
+                 cursor:pointer;white-space:nowrap">
+          🔍 Tìm kiếm
+        </button>
+        <button onclick="window.huntApp.reset()"
+          style="padding:10px 14px;background:var(--bg-card);
+                 border:1px solid var(--border);border-radius:var(--r);
+                 color:var(--muted);font-size:12px;cursor:pointer">
+          ✕ Xóa
+        </button>
+      </div>
+
+      <!-- Filter row -->
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--muted)">Thời gian:</span>
+          <select id="hunt-hours"
+            style="background:var(--bg-card);border:1px solid var(--border);
+                   color:var(--text);padding:5px 10px;border-radius:var(--r);
+                   font-size:11px;font-family:inherit;outline:none">
+            <option value="1">1 giờ</option>
+            <option value="6">6 giờ</option>
+            <option value="24" selected>24 giờ</option>
+            <option value="72">3 ngày</option>
+            <option value="168">7 ngày</option>
+            <option value="720">30 ngày</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--muted)">Host:</span>
+          <input type="text" id="hunt-agent" placeholder="Tất cả"
+            style="background:var(--bg-card);border:1px solid var(--border);
+                   color:var(--text);padding:5px 10px;border-radius:var(--r);
+                   font-size:11px;font-family:inherit;outline:none;width:120px">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--muted)">IP nguồn:</span>
+          <input type="text" id="hunt-ip" placeholder="0.0.0.0"
+            style="background:var(--bg-card);border:1px solid var(--border);
+                   color:var(--text);padding:5px 10px;border-radius:var(--r);
+                   font-size:11px;font-family:inherit;outline:none;width:130px">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--muted)">Rule ID:</span>
+          <input type="text" id="hunt-ruleid" placeholder="5720"
+            style="background:var(--bg-card);border:1px solid var(--border);
+                   color:var(--text);padding:5px 10px;border-radius:var(--r);
+                   font-size:11px;font-family:inherit;outline:none;width:80px">
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--muted)">Level:</span>
+          <select id="hunt-level"
+            style="background:var(--bg-card);border:1px solid var(--border);
+                   color:var(--text);padding:5px 10px;border-radius:var(--r);
+                   font-size:11px;font-family:inherit;outline:none">
+            <option value="1">Tất cả</option>
+            <option value="4">Medium+ (4+)</option>
+            <option value="7">High+ (7+)</option>
+            <option value="12">Critical (12+)</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:11px;color:var(--muted)">Số kết quả:</span>
+          <select id="hunt-size"
+            style="background:var(--bg-card);border:1px solid var(--border);
+                   color:var(--text);padding:5px 10px;border-radius:var(--r);
+                   font-size:11px;font-family:inherit;outline:none">
+            <option value="50">50</option>
+            <option value="100" selected>100</option>
+            <option value="200">200</option>
+            <option value="500">500</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats row (hiện sau khi search) -->
+  <div id="hunt-stats-row" style="display:none;margin-bottom:14px">
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-hdr-title">Top Agents</div>
+        </div>
+        <div class="card-body" id="hunt-stat-agents"></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-hdr-title">Top Rules</div>
+        </div>
+        <div class="card-body" id="hunt-stat-rules"></div>
+      </div>
+      <div class="card">
+        <div class="card-hdr">
+          <div class="card-hdr-title">Top IPs tấn công</div>
+        </div>
+        <div class="card-body" id="hunt-stat-ips"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
   <div class="card">
     <div class="card-hdr">
       <div>
-        <div class="card-hdr-title">Threat Hunting</div>
-        <div class="card-hdr-sub">Pivot theo IP, tactic, timeline và hypothesis</div>
+        <div class="card-hdr-title">Kết quả tìm kiếm</div>
+        <div class="card-hdr-sub" id="hunt-result-info">
+          Nhập từ khóa và nhấn Tìm kiếm
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="window.huntApp.exportCSV()"
+          id="hunt-export-btn" style="display:none;
+          padding:5px 12px;background:var(--bg-card);
+          border:1px solid var(--border);border-radius:var(--r);
+          color:var(--muted);font-size:11px;cursor:pointer">
+          ↓ Export CSV
+        </button>
       </div>
     </div>
-    <div style="padding:24px;color:var(--muted);font-size:13px">
-      Không gian hunting dành cho truy vết nâng cao, pivot từ alert sang case và tương quan sự kiện.
+    <div style="overflow-x:auto" id="hunt-results-wrap">
+      <div id="hunt-empty" style="padding:60px;text-align:center;color:var(--muted)">
+        <div style="font-size:32px;margin-bottom:12px;opacity:.3">🔍</div>
+        <div style="font-size:14px">Chưa có kết quả</div>
+        <div style="font-size:12px;margin-top:6px">
+          Nhập từ khóa hoặc bộ lọc rồi nhấn Tìm kiếm
+        </div>
+      </div>
+      <table class="soc-table" id="hunt-table" style="display:none">
+        <thead>
+          <tr>
+            <th style="width:36px"></th>
+            <th>Thời gian</th>
+            <th>Agent</th>
+            <th>Quy tắc</th>
+            <th>Mức độ</th>
+            <th>IP nguồn</th>
+            <th>IP đích</th>
+            <th>MITRE</th>
+            <th>Quốc gia</th>
+            <th>Hành động</th>
+          </tr>
+        </thead>
+        <tbody id="hunt-tbody"></tbody>
+      </table>
     </div>
   </div>
 </div>

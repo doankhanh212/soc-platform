@@ -33,4 +33,13 @@ window.socApi={
     return fetch(`/api/cases/${encodeURIComponent(id)}/triage`, {method:'DELETE'})
       .then(r => { if(!r.ok) throw new Error(r.status); return r.json(); });
   },
+  // Threat Hunting
+  hunt: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return _get(`/api/hunting/search?${qs}`);
+  },
+  huntStats: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return _get(`/api/hunting/stats?${qs}`);
+  },
 };
