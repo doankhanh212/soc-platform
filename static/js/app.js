@@ -1524,36 +1524,65 @@ document.addEventListener('DOMContentLoaded', () => {
     const row = document.getElementById('hunt-stats-row');
     if(row) row.style.display='block';
 
-    const renderList = (containerId, items, keyField, valField) => {
+    const renderList = (containerId, items, keyField, valField, color) => {
       const el = document.getElementById(containerId);
       if(!el) return;
-      if(!items.length){
-        el.innerHTML='<div style="color:var(--muted);font-size:12px">Không có data</div>';
+      if(!items || !items.length){
+        el.innerHTML=`<div style="color:var(--muted);font-size:12px;
+          text-align:center;padding:20px 0">Không có data</div>`;
         return;
       }
       const max = items[0][valField]||1;
-      el.innerHTML = items.map(item=>`
-        <div style="margin-bottom:8px">
-          <div style="display:flex;justify-content:space-between;
-            font-size:11px;margin-bottom:3px">
-            <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis;
-              white-space:nowrap;max-width:70%"
-              title="${item[keyField]}">${item[keyField]}</span>
-            <span style="color:var(--muted);font-family:monospace">
-              ${item[valField].toLocaleString()}
-            </span>
-          </div>
-          <div style="height:3px;background:rgba(0,255,65,.08);
-            border-radius:2px;overflow:hidden">
-            <div style="height:100%;width:${(item[valField]/max*100).toFixed(1)}%;
-              background:var(--green);border-radius:2px"></div>
-          </div>
-        </div>`).join('');
+      el.innerHTML = items.map((item,i)=>{
+        const pct = (item[valField]/max*100).toFixed(1);
+        const barColor = i===0 ? color :
+                         i===1 ? color+'cc' :
+                         i===2 ? color+'99' : color+'66';
+        return `
+          <div style="margin-bottom:10px">
+            <div style="display:flex;justify-content:space-between;
+              align-items:center;margin-bottom:4px">
+              <span style="color:var(--text);font-size:12px;
+                overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+                max-width:75%;flex:1" title="${item[keyField]}">
+                ${item[keyField]}
+              </span>
+              <span style="color:var(--muted);font-family:monospace;
+                font-size:11px;margin-left:8px;flex-shrink:0">
+                ${item[valField].toLocaleString()}
+              </span>
+            </div>
+            <div style="height:4px;background:rgba(255,255,255,0.06);
+              border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:${barColor};
+                border-radius:4px;transition:width .4s ease"></div>
+            </div>
+          </div>`;
+      }).join('');
     };
 
-    renderList('hunt-stat-agents', stats.top_agents, 'name',  'count');
-    renderList('hunt-stat-rules',  stats.top_rules,  'rule',  'count');
-    renderList('hunt-stat-ips',    stats.top_ips,    'ip',    'count');
+    renderList('hunt-stat-agents', stats.top_agents, 'name',  'count', 'var(--green)');
+    renderList('hunt-stat-rules',  stats.top_rules,  'rule',  'count', 'var(--blue)');
+    renderList('hunt-stat-ips',    stats.top_ips,    'ip',    'count', 'var(--red)');
+  }
+
+  function _detailField(label, value, colorKey=''){
+    const colors={
+      green:'var(--green)', cyan:'var(--cyan)',
+      muted:'var(--muted)', purple:'var(--purple)',
+      red:'var(--red)',     amber:'var(--amber)',
+    };
+    const col = colors[colorKey]||'var(--text)';
+    return `
+      <div style="padding:6px 8px">
+        <div style="font-size:10px;color:var(--muted);
+          text-transform:uppercase;letter-spacing:.05em;
+          margin-bottom:3px">${label}</div>
+        <div style="font-size:12px;color:${col};
+          font-family:${colorKey?'monospace':'inherit'};
+          overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+          title="${value}">${value||'—'}</div>
+      </div>`;
   }
 
   function renderTable(){
@@ -1571,9 +1600,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const geo  = a?.GeoLocation?.country_name||'—';
       return `
         <tr class="hunt-row" style="cursor:pointer"
+          onmouseover="this.style.background='var(--bg-hover)'"
+          onmouseout="this.style.background=''"
           onclick="window.huntApp.toggleRow(${i})">
-          <td style="padding:8px;text-align:center;color:var(--muted)">
-            <span id="hunt-expand-${i}">▶</span>
+          <td style="padding:8px;text-align:center">
+            <div id="hunt-expand-${i}"
+              style="width:20px;height:20px;border-radius:50%;
+                     border:1px solid var(--border);display:flex;
+                     align-items:center;justify-content:center;
+                     font-size:9px;color:var(--muted);cursor:pointer;
+                     transition:all .15s;margin:0 auto"
+              onmouseover="this.style.borderColor='var(--green)';
+                           this.style.color='var(--green)'"
+              onmouseout="this.style.borderColor='var(--border)';
+                          this.style.color='var(--muted)'">▶</div>
           </td>
           <td class="mono" style="font-size:11px;white-space:nowrap">
             ${_fmtTs(a['@timestamp'])}
@@ -1604,13 +1644,102 @@ document.addEventListener('DOMContentLoaded', () => {
           </td>
         </tr>
         <tr id="hunt-detail-${i}" style="display:none">
-          <td colspan="10" style="padding:0">
-            <div style="background:var(--bg);border:1px solid var(--border);
-              border-radius:var(--r);margin:4px 8px 8px;padding:14px;
-              font-family:monospace;font-size:11px;color:var(--text);
-              white-space:pre-wrap;overflow-x:auto;max-height:300px;
-              overflow-y:auto;line-height:1.6">
-${JSON.stringify(a, null, 2)}
+          <td colspan="10" style="padding:0;background:var(--bg)">
+            <div style="margin:0 8px 8px;border:1px solid var(--border);
+              border-radius:var(--r2);overflow:hidden">
+
+              <!-- Tabs trong expand row -->
+              <div style="display:flex;background:var(--bg1);
+                border-bottom:1px solid var(--border)">
+                <div style="padding:8px 16px;font-size:11px;font-weight:700;
+                  color:var(--green);border-bottom:2px solid var(--green);
+                  text-transform:uppercase;letter-spacing:.06em">
+                  Chi tiết sự kiện
+                </div>
+                <div style="padding:8px 16px;font-size:11px;color:var(--muted);
+                  text-transform:uppercase;letter-spacing:.06em">
+                  Raw JSON
+                </div>
+              </div>
+
+              <!-- Thông tin chính -->
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);
+                gap:0;padding:12px 16px;background:var(--bg)">
+                ${_detailField('Thời gian',     _fmtTs(a['@timestamp']))}
+                ${_detailField('Agent',         a?.agent?.name||'—',     'green')}
+                ${_detailField('Agent IP',      a?.agent?.ip||'—',       'cyan')}
+                ${_detailField('Rule ID',       a?.rule?.id||'—')}
+                ${_detailField('Rule Level',    a?.rule?.level||'—')}
+                ${_detailField('Rule Groups',   (a?.rule?.groups||[]).join(', ')||'—')}
+                ${_detailField('IP nguồn',      a?.data?.src_ip||a?.data?.srcip||'—','cyan')}
+                ${_detailField('IP đích',       a?.data?.dest_ip||'—',  'muted')}
+                ${_detailField('Port nguồn',    a?.data?.src_port||'—')}
+                ${_detailField('Port đích',     a?.data?.dest_port||'—')}
+                ${_detailField('Protocol',      a?.data?.proto||'—')}
+                ${_detailField('Quốc gia',      a?.GeoLocation?.country_name||'—')}
+                ${_detailField('MITRE ID',      (a?.rule?.mitre?.id||[]).join(', ')||'—','purple')}
+                ${_detailField('MITRE Tactic',  (a?.rule?.mitre?.tactic||[]).join(', ')||'—','purple')}
+                ${_detailField('Signature',     a?.data?.alert?.signature||a?.rule?.description||'—')}
+              </div>
+
+              <!-- Raw log -->
+              ${a?.full_log ? `
+              <div style="padding:8px 16px;border-top:1px solid var(--border);
+                background:var(--bg1)">
+                <div style="font-size:10px;color:var(--muted);
+                  text-transform:uppercase;margin-bottom:6px">Full Log</div>
+                <div style="font-family:monospace;font-size:11px;
+                  color:var(--text);line-height:1.5;white-space:pre-wrap;
+                  word-break:break-all">${a.full_log}</div>
+              </div>` : ''}
+
+              <!-- Raw JSON toggle -->
+              <details style="padding:8px 16px;border-top:1px solid var(--border)">
+                <summary style="font-size:11px;color:var(--muted);
+                  cursor:pointer;list-style:none;display:flex;
+                  align-items:center;gap:6px">
+                  <span>▶</span> Xem Raw JSON
+                </summary>
+                <pre style="font-family:monospace;font-size:11px;
+                  color:var(--text);white-space:pre-wrap;overflow-x:auto;
+                  max-height:250px;overflow-y:auto;margin-top:8px;
+                  background:var(--bg1);padding:10px;border-radius:var(--r)">
+${JSON.stringify(a, null, 2)}</pre>
+              </details>
+
+              <!-- Actions -->
+              <div style="padding:10px 16px;border-top:1px solid var(--border);
+                display:flex;gap:8px;background:var(--bg1)">
+                <button onclick="window.createCaseFromAlert(
+                  ${JSON.stringify(a).replace(/"/g,'&quot;')})"
+                  style="padding:5px 14px;background:var(--green3);
+                         border:1px solid var(--green);border-radius:var(--r);
+                         color:var(--green);font-size:11px;
+                         font-weight:700;cursor:pointer">
+                  📁 Tạo vụ việc
+                </button>
+                <button onclick="window.quickHunt('ip','${
+                  a?.data?.src_ip||a?.data?.srcip||''}')"
+                  style="padding:5px 14px;background:var(--bg-card);
+                         border:1px solid var(--border);border-radius:var(--r);
+                         color:var(--muted);font-size:11px;cursor:pointer">
+                  🔍 Hunt IP này
+                </button>
+                <button onclick="window.quickHunt('agent','${a?.agent?.name||''}')"
+                  style="padding:5px 14px;background:var(--bg-card);
+                         border:1px solid var(--border);border-radius:var(--r);
+                         color:var(--muted);font-size:11px;cursor:pointer">
+                  🖥 Hunt Agent này
+                </button>
+                <button onclick="navigator.clipboard.writeText(
+                  '${(a?.data?.src_ip||a?.data?.srcip||'').replace(/'/g,'')}');
+                  window.toast('Đã copy IP','ok',1500)"
+                  style="padding:5px 12px;background:var(--bg-card);
+                         border:1px solid var(--border);border-radius:var(--r);
+                         color:var(--muted);font-size:11px;cursor:pointer">
+                  📋 Copy IP
+                </button>
+              </div>
             </div>
           </td>
         </tr>`;
@@ -1623,7 +1752,10 @@ ${JSON.stringify(a, null, 2)}
     if(!detailEl) return;
     const isOpen = detailEl.style.display !== 'none';
     detailEl.style.display = isOpen ? 'none' : 'table-row';
-    if(expandEl) expandEl.textContent = isOpen ? '▶' : '▼';
+    if(expandEl){
+      expandEl.style.transform = isOpen ? '' : 'rotate(90deg)';
+      expandEl.style.transition = 'transform .2s';
+    }
   }
 
   function reset(){
@@ -1693,5 +1825,10 @@ ${JSON.stringify(a, null, 2)}
     }, 200);
   };
 
-  window.huntApp = { search, reset, toggleRow, exportCSV };
+  function quickFill(text){
+    const el = document.getElementById('hunt-query');
+    if(el){ el.value=text; el.focus(); }
+  }
+
+  window.huntApp = { search, reset, toggleRow, exportCSV, quickFill };
 })();

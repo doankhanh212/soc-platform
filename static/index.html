@@ -657,21 +657,21 @@
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:11px;color:var(--muted)">Host:</span>
-          <input type="text" id="hunt-agent" placeholder="Tất cả"
+          <input type="text" id="hunt-agent" placeholder="Tất cả host"
             style="background:var(--bg-card);border:1px solid var(--border);
                    color:var(--text);padding:5px 10px;border-radius:var(--r);
                    font-size:11px;font-family:inherit;outline:none;width:120px">
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:11px;color:var(--muted)">IP nguồn:</span>
-          <input type="text" id="hunt-ip" placeholder="0.0.0.0"
+          <input type="text" id="hunt-ip" placeholder="VD: 192.168.1.1"
             style="background:var(--bg-card);border:1px solid var(--border);
                    color:var(--text);padding:5px 10px;border-radius:var(--r);
                    font-size:11px;font-family:inherit;outline:none;width:130px">
         </div>
         <div style="display:flex;align-items:center;gap:6px">
           <span style="font-size:11px;color:var(--muted)">Rule ID:</span>
-          <input type="text" id="hunt-ruleid" placeholder="5720"
+          <input type="text" id="hunt-ruleid" placeholder="VD: 5720"
             style="background:var(--bg-card);border:1px solid var(--border);
                    color:var(--text);padding:5px 10px;border-radius:var(--r);
                    font-size:11px;font-family:inherit;outline:none;width:80px">
@@ -700,6 +700,27 @@
             <option value="500">500</option>
           </select>
         </div>
+      </div>
+
+      <!-- Tooltip hints -->
+      <div style="font-size:11px;color:var(--muted);margin-top:8px;
+        display:flex;gap:12px;flex-wrap:wrap">
+        <span>💡 Gợi ý:</span>
+        <span onclick="window.huntApp.quickFill('ssh')"
+          style="color:var(--green);cursor:pointer;
+                 text-decoration:underline dotted">SSH brute force</span>
+        <span onclick="window.huntApp.quickFill('authentication failed')"
+          style="color:var(--green);cursor:pointer;
+                 text-decoration:underline dotted">Authentication failed</span>
+        <span onclick="window.huntApp.quickFill('privilege escalation')"
+          style="color:var(--amber);cursor:pointer;
+                 text-decoration:underline dotted">Privilege escalation</span>
+        <span onclick="window.huntApp.quickFill('integrity checksum')"
+          style="color:var(--amber);cursor:pointer;
+                 text-decoration:underline dotted">File integrity</span>
+        <span onclick="window.huntApp.quickFill('SQL')"
+          style="color:var(--red);cursor:pointer;
+                 text-decoration:underline dotted">SQL injection</span>
       </div>
     </div>
   </div>
@@ -747,7 +768,8 @@
         </button>
       </div>
     </div>
-    <div style="overflow-x:auto" id="hunt-results-wrap">
+    <div style="overflow-x:auto;max-height:calc(100vh - 420px);overflow-y:auto"
+         id="hunt-results-wrap">
       <div id="hunt-empty" style="padding:60px;text-align:center;color:var(--muted)">
         <div style="font-size:32px;margin-bottom:12px;opacity:.3">🔍</div>
         <div style="font-size:14px">Chưa có kết quả</div>
@@ -757,17 +779,17 @@
       </div>
       <table class="soc-table" id="hunt-table" style="display:none">
         <thead>
-          <tr>
-            <th style="width:36px"></th>
-            <th>Thời gian</th>
-            <th>Agent</th>
-            <th>Quy tắc</th>
-            <th>Mức độ</th>
-            <th>IP nguồn</th>
-            <th>IP đích</th>
-            <th>MITRE</th>
-            <th>Quốc gia</th>
-            <th>Hành động</th>
+          <tr style="position:sticky;top:0;z-index:10;background:var(--bg1)">
+            <th style="width:32px"></th>
+            <th style="min-width:140px">Thời gian</th>
+            <th style="min-width:110px">Agent</th>
+            <th style="min-width:240px">Quy tắc phát hiện</th>
+            <th style="min-width:110px">Mức độ</th>
+            <th style="min-width:130px">IP nguồn</th>
+            <th style="min-width:120px">IP đích</th>
+            <th style="min-width:90px">MITRE</th>
+            <th style="min-width:100px">Quốc gia</th>
+            <th style="min-width:100px">Hành động</th>
           </tr>
         </thead>
         <tbody id="hunt-tbody"></tbody>

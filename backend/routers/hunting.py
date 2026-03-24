@@ -89,18 +89,30 @@ async def hunt_stats(
         "size": 0,
         "query": {"bool": {"must": must}},
         "aggs": {
-            "top_agents": {"terms": {"field": "agent.name",        "size": 5}},
-            "top_rules":  {"terms": {"field": "rule.description",  "size": 5}},
-            "top_ips":    {"terms": {"field": "data.src_ip",       "size": 5}},
+            "top_agents": {"terms": {"field": "agent.name",       "size": 5}},
+            "top_rules":  {"terms": {"field": "rule.description", "size": 5}},
+            "top_src_ip": {"terms": {"field": "data.src_ip",      "size": 5}},
+            "top_srcip":  {"terms": {"field": "data.srcip",       "size": 5}},
         }
     }
     result = await _search(cfg.index_wazuh_alerts, body)
     aggs = result.get("aggregations", {})
+    
+    # Merge 2 IP fields
+    ip_map = {}
+    for b in aggs.get("top_src_ip",{}).get("buckets",[]):
+        ip_map[b["key"]] = ip_map.get(b["key"],0) + b["doc_count"]
+    for b in aggs.get("top_srcip",{}).get("buckets",[]):
+        ip_map[b["key"]] = ip_map.get(b["key"],0) + b["doc_count"]
+    top_ips = sorted(
+        [{"ip":k,"count":v} for k,v in ip_map.items()],
+        key=lambda x: x["count"], reverse=True
+    )[:5]
+
     return {
         "top_agents": [{"name":b["key"],"count":b["doc_count"]}
                        for b in aggs.get("top_agents",{}).get("buckets",[])],
         "top_rules":  [{"rule":b["key"],"count":b["doc_count"]}
                        for b in aggs.get("top_rules",{}).get("buckets",[])],
-        "top_ips":    [{"ip":b["key"],"count":b["doc_count"]}
-                       for b in aggs.get("top_ips",{}).get("buckets",[])],
+        "top_ips":    top_ips,
     }
