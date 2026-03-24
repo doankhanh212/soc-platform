@@ -101,6 +101,7 @@ function navigate(page) {
     'mitre':        ['MITRE ATT&CK', 'Kỹ thuật tấn công'],
     'threat-intel': ['Threat Intelligence', 'IOC & Enrichment'],
     'hunting':      ['Threat Hunting', 'Truy vết nâng cao'],
+    'soar':         ['SOAR Playbook', 'Điều phối và phản ứng tự động'],
     'ai':           ['Động cơ AI', 'Phát hiện bất thường'],
     'settings':     ['Cài đặt', 'Hệ thống'],
   };

@@ -1088,3 +1088,448 @@ body::before{
 .theme-card.active {
   box-shadow: 0 0 12px rgba(0,255,65,0.3);
 }
+
+/* ══════════════════════════════════════════════════════════════ */
+/* ── SOAR PLAYBOOK BUILDER ──────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════ */
+
+.soar-component {
+  user-select: none;
+  box-shadow: 0 0 8px rgba(0,255,65,0.1);
+  outline: 1px solid #1a3a1a;
+  outline-offset: -1px;
+}
+.soar-component:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 12px rgba(0,255,65,0.2);
+  outline-color: #00ff88;
+}
+
+.soar-node {
+  position: absolute;
+  background: var(--bg-card);
+  border: 2px solid var(--green);
+  border-radius: var(--r2);
+  min-width: 240px;
+  box-shadow: 0 0 12px rgba(0,255,65,0.15);
+  user-select: none;
+  cursor: move;
+}
+.soar-node.action {
+  border-color: var(--green);
+}
+.soar-node.condition {
+  border-color: var(--amber);
+}
+.soar-node.trigger {
+  border-color: var(--red);
+}
+.soar-node.connector {
+  border-color: var(--cyan);
+}
+
+.soar-node-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,255,65,.05);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--green);
+}
+.soar-node.condition .soar-node-hdr {
+  background: rgba(255,153,0,.05);
+  color: var(--amber);
+}
+.soar-node.trigger .soar-node-hdr {
+  background: rgba(255,51,51,.05);
+  color: var(--red);
+}
+.soar-node.connector .soar-node-hdr {
+  background: rgba(0,255,255,.05);
+  color: var(--cyan);
+}
+
+.soar-node-title {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.soar-node-menu {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  transition: color .15s;
+}
+.soar-node-menu:hover {
+  color: var(--text);
+}
+
+.soar-section {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.soar-section:last-child {
+  border-bottom: none;
+}
+
+.soar-section-label {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 700;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.soar-textarea {
+  width: 100%;
+  height: 60px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 11px;
+  font-family: 'Share Tech Mono', monospace;
+  outline: none;
+  resize: none;
+}
+.soar-textarea:focus {
+  border-color: var(--border2);
+}
+
+.soar-copy-btn {
+  margin-top: 4px;
+  padding: 3px 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all .15s;
+}
+.soar-copy-btn:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.soar-arrow-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.soar-node-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  border: 2px solid var(--bg-card);
+  cursor: pointer;
+}
+.soar-node-dot.output {
+  right: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.soar-node-dot.input {
+  left: -4px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+#soar-toggle-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+#soar-toggle-dot.active {
+  margin-left: auto;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+}
+
+#soar-status {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+}
+
+/* ── SOAR History Items ── */
+.soar-history-item {
+  cursor: pointer;
+  transition: all .2s ease;
+}
+.soar-history-item:hover {
+  background: rgba(0,255,65,0.05);
+  border-left-width: 4px !important;
+}
+.soar-history-item:active {
+  transform: scale(0.98);
+}
+
+/* ── SOAR External Connectors ── */
+.soar-external-link {
+  cursor: grab;
+  transition: all .2s ease;
+  user-select: none;
+}
+.soar-external-link:hover {
+  border-color: #00ff88 !important;
+  transform: scale(1.08);
+  box-shadow: 0 0 12px rgba(0,255,88,0.3);
+}
+.soar-external-link:active {
+  cursor: grabbing;
+}
+
+#playbook-canvas {
+  cursor: grab;
+}
+
+#playbook-canvas.pan-mode,
+#playbook-canvas.is-panning {
+  cursor: grabbing;
+}
+
+#canvas-viewport {
+  transition: transform .04s linear;
+}
+
+#arrows-layer {
+  pointer-events: auto;
+}
+
+.playbook-node {
+  position: absolute;
+  width: 250px;
+}
+
+.playbook-node.selected {
+  box-shadow: 0 0 0 2px rgba(255,204,0,.7), 0 0 14px rgba(255,204,0,.25);
+}
+
+.soar-port {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #00ff88;
+  border: 2px solid #071707;
+  cursor: crosshair;
+  z-index: 30;
+}
+
+.soar-port.in {
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.soar-port.out {
+  right: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.soar-port:hover {
+  box-shadow: 0 0 10px rgba(0,255,136,.75);
+}
+
+.soar-conn-path {
+  fill: none;
+  stroke: #00ff88;
+  stroke-width: 2.5;
+  pointer-events: stroke;
+  cursor: pointer;
+  transition: stroke .18s ease, stroke-width .18s ease;
+}
+
+.soar-conn-path.hovered,
+.soar-conn-path.selected {
+  stroke: #ffcc00;
+  stroke-width: 3;
+}
+
+.soar-conn-path.temp {
+  stroke-dasharray: 7 6;
+  opacity: .95;
+}
+
+.soar-conn-path.flowing {
+  stroke-dasharray: 12 9;
+  animation: soarFlow 1s linear;
+}
+
+@keyframes soarFlow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -42; }
+}
+
+.soar-conn-delete-btn {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,80,80,.45);
+  background: rgba(30,8,8,.95);
+  color: #ff8d8d;
+  font-size: 11px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+
+.node-run-badge {
+  margin-left: auto;
+  font-size: 9px;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: .9;
+}
+
+.playbook-node.run-processing {
+  border-color: #ffcc00;
+  animation: soarPulse .5s ease-in-out infinite alternate;
+}
+
+.playbook-node.run-success {
+  border-color: #00ff88;
+}
+
+.playbook-node.run-failed {
+  border-color: #ff3333;
+}
+
+@keyframes soarPulse {
+  from { box-shadow: 0 0 8px rgba(255,204,0,.2); }
+  to { box-shadow: 0 0 20px rgba(255,204,0,.55); }
+}
+
+.soar-log-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 200px;
+  transform: translateY(100%);
+  transition: transform .22s ease;
+  background: #050f05;
+  border-top: 1px solid #00ff88;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+}
+
+.soar-log-panel.open {
+  transform: translateY(0);
+}
+
+.soar-log-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  color: #9be99b;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(0,255,136,.2);
+}
+
+.soar-log-btn {
+  border: 1px solid rgba(0,255,136,.25);
+  background: rgba(0,255,136,.05);
+  color: #98ce98;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.soar-log-btn:hover {
+  border-color: rgba(0,255,136,.5);
+  color: #d0ffd0;
+}
+
+.soar-log-body {
+  padding: 8px 12px;
+  overflow: auto;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.soar-log-line {
+  margin-bottom: 4px;
+}
+
+.soar-log-line.warn { color: #ffcc00; }
+.soar-log-line.ok { color: #00ff88; }
+.soar-log-line.err { color: #ff6666; }
+.soar-log-line.info { color: #93a993; }
+
+.soar-run-modal {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,.45);
+  z-index: 60;
+}
+
+.soar-run-modal.active {
+  display: flex;
+}
+
+.soar-run-dialog {
+  width: min(560px, 92%);
+  background: #071307;
+  border: 1px solid rgba(0,255,136,.35);
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 0 24px rgba(0,255,136,.15);
+}
+
+.soar-modal-btn {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(145,170,145,.35);
+  background: rgba(15,25,15,.85);
+  color: #a9c2a9;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.soar-modal-btn.primary {
+  border-color: rgba(0,255,136,.4);
+  color: #00ff88;
+}
+
+.soar-modal-btn.danger {
+  border-color: rgba(255,120,120,.45);
+  color: #ff8f8f;
+}
+
+#soar-auto-badge {
+  animation: soarAutoBlink 1.1s ease-in-out infinite;
+}
+
+@keyframes soarAutoBlink {
+  0% { opacity: .45; }
+  50% { opacity: 1; }
+  100% { opacity: .45; }
+}
