@@ -10,17 +10,20 @@ from routers.auth import router as auth_router
 from routers.hunting import router as hunting_router
 from routers.ws import ws_endpoint, broadcast_loop
 from services.rule_engine import rule_engine_loop
+from ai.runner import ai_engine_loop
 
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    task = asyncio.create_task(broadcast_loop())
+    task      = asyncio.create_task(broadcast_loop())
     rule_task = asyncio.create_task(rule_engine_loop())
+    ai_task   = asyncio.create_task(ai_engine_loop())
     yield
     task.cancel()
     rule_task.cancel()
+    ai_task.cancel()
 
 app = FastAPI(title="HQG AI-SOC Platform", version="2.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
