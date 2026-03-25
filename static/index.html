@@ -1361,6 +1361,8 @@
 
 <!-- ══ SCRIPTS ══════════════════════════════════════════════════ -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="js/toast.js"></script>
+<script src="js/ai_labels.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/api.js"></script>
 <script src="js/ws.js"></script>
@@ -1368,6 +1370,8 @@
 <script src="js/triage.js"></script>
 <script src="js/app.js"></script>
 <script src="js/soar.js"></script>
+<script src="js/block_ip.js"></script>
+<script src="js/alert_detail_modal.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', ()=>{
   document.addEventListener('soc:data', e=>{
@@ -1387,15 +1391,43 @@ document.addEventListener('DOMContentLoaded', ()=>{
       const sc=parseFloat(a.risk_score||0);
       const col=sc>=.75?'var(--red)':sc>=.5?'var(--amber)':'var(--green)';
       const ts=new Date(a['@timestamp']).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
+      const modelHtml = typeof renderModelBadges === 'function'
+        ? renderModelBadges(a.triggered_models||[])
+        : (a.triggered_models||[]).join(', ');
+      const actionHtml = typeof renderActionSuggestion === 'function'
+        ? renderActionSuggestion(sc)
+        : (a.should_block?'<span class="badge badge-critical">ĐÃ CHẶN</span>':'');
       return `<tr>
         <td class="mono">${ts}</td>
         <td style="color:var(--cyan);font-family:monospace">${a.src_ip||'—'}</td>
         <td style="color:${col};font-weight:700;font-family:'Share Tech Mono',monospace">${sc.toFixed(3)}</td>
-        <td style="font-size:11px;color:var(--muted)">${(a.triggered_models||[]).join(', ')||'—'}</td>
-        <td>${a.should_block?'<span class="badge badge-critical">ĐÃ CHẶN</span>':''}</td>
+        <td>${modelHtml}</td>
+        <td>${actionHtml}</td>
       </tr>`;
     }).join('');
   });
+});
+</script>
+<script>
+// ══ INTEGRATION BRIDGE ══════════════════════════════════════════
+// Wire new modules (block_ip.js, alert_detail_modal.js) into existing app
+document.addEventListener('DOMContentLoaded', () => {
+  // 1. Override blockIP to use confirmBlockIP modal instead of simple confirm()
+  if (typeof confirmBlockIP === 'function') {
+    window.blockIP = function(ip) {
+      confirmBlockIP(ip, { analyst: 'admin' });
+    };
+  }
+
+  // 2. Initialize AlertDetailModal for investigate action
+  if (typeof AlertDetailModal === 'function') {
+    window._alertModal = new AlertDetailModal();
+    const origInvestigate = window.alertQueue?.investigate;
+    // Wire investigate button to open detail modal
+    window.alertDetailShow = function(alertData) {
+      window._alertModal.show(alertData);
+    };
+  }
 });
 </script>
 <script src="js/theme.js"></script>

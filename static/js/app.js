@@ -3,16 +3,20 @@
  * Green cyberpunk SOC Dashboard
  */
 
-/* ── Toast ─────────────────────────────────────── */
-window.toast = function(msg, type='ok', ms=4000){
-  const wrap = document.getElementById('toast-wrap');
-  const t = document.createElement('div');
-  const icons = {ok:'✓',err:'✗',warn:'⚠'};
-  t.className = `toast toast-${type}`;
-  t.innerHTML = `<span>${icons[type]||'ℹ'}</span><span>${msg}</span>`;
-  wrap.appendChild(t);
-  setTimeout(()=>t.remove(), ms);
-};
+/* ── Toast (provided by toast.js — compatibility bridge) ── */
+// window.toast is defined by toast.js with enhanced notifications
+// If toast.js not loaded, provide minimal fallback
+if (typeof window.toast !== 'function') {
+  window.toast = function(msg, type='ok', ms=4000){
+    const wrap = document.getElementById('toast-wrap');
+    const t = document.createElement('div');
+    const icons = {ok:'✓',err:'✗',warn:'⚠'};
+    t.className = `toast toast-${type}`;
+    t.innerHTML = `<span>${icons[type]||'ℹ'}</span><span>${msg}</span>`;
+    wrap.appendChild(t);
+    setTimeout(()=>t.remove(), ms);
+  };
+}
 
 /* ── Severity helpers ───────────────────────────── */
 function sevBadge(level){
@@ -453,9 +457,15 @@ function renderMitreDetailTable(techniques){
   }).join('');
 }
 
-/* ── Block IP ───────────────────────────────────── */
+/* ── Block IP (enhanced by block_ip.js if loaded) ── */
 window.blockIP = async function(ip){
   if(!ip || typeof ip !== 'string') return;
+  // Use enhanced confirmBlockIP modal if block_ip.js is loaded
+  if(typeof confirmBlockIP === 'function'){
+    confirmBlockIP(ip, { analyst: 'admin' });
+    return;
+  }
+  // Fallback: simple confirm dialog
   if(!confirm(`Chặn IP ${ip} bằng iptables?\n\nLưu ý: cần AI_BLOCK_AUTO=true trong .env backend`)) return;
   try{
     const res = await fetch(`/api/response/block-ip?ip=${encodeURIComponent(ip)}`,{method:'POST'});
