@@ -73,4 +73,5 @@ Server pushes `soc:data` event every `WS_BROADCAST_INTERVAL` seconds:
 | GET | `/api/alerts/suricata` | Suricata IDS alerts |
 | GET | `/api/alerts/ai` | AI anomaly alerts |
 | POST | `/api/response/block-ip?ip=1.2.3.4` | Block IP via iptables |
+| GET | `/api/reports/security-intelligence` | SOC-grade HTML Security Intelligence report |
 | WS | `/ws` | Real-time push stream |

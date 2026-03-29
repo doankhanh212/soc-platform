@@ -4,6 +4,7 @@ window.soarApp = (function() {
 
   const MAX_UNDO_STEPS = 20;
   const HISTORY_KEY = 'soar.run.history.v1';
+  const PLAYBOOK_DRAFT_KEY = 'soar.playbook.draft.v1';
 
   class PlaybookCanvas {
     constructor() {
@@ -16,6 +17,8 @@ window.soarApp = (function() {
       this.historyEl = null;
       this.logPanel = null;
       this.logBody = null;
+      this.logStatus = null;
+      this.logFooter = null;
       this.runModal = null;
       this.templateSelect = null;
       this.toggleBtn = null;
@@ -78,7 +81,9 @@ window.soarApp = (function() {
       this.statusEl = document.getElementById('soar-status');
       this.historyEl = document.getElementById('soar-history');
       this.logPanel = document.getElementById('run-log-panel');
-      this.logBody = document.getElementById('run-log-body');
+      this.logBody = document.getElementById('log-body');
+      this.logStatus = document.getElementById('log-status');
+      this.logFooter = document.getElementById('log-footer');
       this.runModal = document.getElementById('soar-run-modal');
       this.templateSelect = document.getElementById('soar-template-select');
       this.toggleBtn = document.getElementById('soar-toggle-btn');
@@ -96,6 +101,7 @@ window.soarApp = (function() {
       this.applyViewportTransform();
       this.updateZoomLabel();
       this.loadHistoryFromStorage();
+      this.loadDraftFromStorage();
       this.renderHistory();
       this.updateStatus('Sẵn sàng');
       this.pushUndoState();
@@ -490,13 +496,19 @@ window.soarApp = (function() {
         return;
       }
 
-      const duplicated = this.connections.some(conn => conn.from === fromId && conn.to === toId);
-      if (!duplicated) {
-        const id = `c${++this.connectionCounter}`;
-        this.connections.push({ id, from: fromId, to: toId });
-        this.pushUndoState();
-      }
+      this.createConnection(fromId, toId);
       this.renderConnections();
+    }
+
+    createConnection(fromId, toId) {
+      const duplicated = this.connections.some(conn => conn.from === fromId && conn.to === toId);
+      if (duplicated) {
+        return false;
+      }
+      const id = `c${++this.connectionCounter}`;
+      this.connections.push({ id, from: fromId, to: toId });
+      this.pushUndoState();
+      return true;
     }
 
     cancelConnectionDrawing() {
@@ -870,6 +882,7 @@ window.soarApp = (function() {
       this.renderConnections();
       this.suspendUndo = false;
       this.pushUndoState();
+      this.saveDraftToStorage(payload);
       this.updateStatus('Đã tải playbook');
     }
 
@@ -879,6 +892,10 @@ window.soarApp = (function() {
         return;
       }
       const body = this.serializePlaybook();
+      this.saveDraftToStorage(body);
+      showToast('💾 Đã lưu playbook', 'ok');
+      this.updateStatus('Đã lưu playbook');
+      return;
       window.api.post('/api/playbooks', body)
         .then(() => {
           showToast('💾 Đã lưu playbook', 'ok');
@@ -942,6 +959,97 @@ window.soarApp = (function() {
             { from: 'n1', to: 'n2' },
             { from: 'n2', to: 'n3' }
           ]
+        },
+        nmap_scan: {
+          ten: '🔍 Phản ứng Quét Nmap Suricata',
+          mo_ta: 'Xử lý khi Suricata phát hiện Nmap SYN Scan (rule 86601)',
+          nodes: [
+            {
+              id: 'n1',
+              type: 'trigger',
+              x: 80,
+              y: 180,
+              title: 'Phát hiện Nmap Scan',
+              input: 'Suricata alert — data.alert.signature_id = 1000001',
+              action: 'Kích hoạt khi Suricata ghi nhận SOC LAB Nmap SYN Scan',
+              output: 'data.src_ip, data.dest_port, flow.pkts_toserver'
+            },
+            {
+              id: 'n2',
+              type: 'action',
+              x: 440,
+              y: 180,
+              title: 'Tương quan cảnh báo',
+              input: 'src_ip, khung thời gian ±30 phút',
+              action: 'Query /api/hunt?q={src_ip}&hours=1 — đếm số port đã quét',
+              output: 'ports_scanned, so_canh_bao_lien_quan'
+            },
+            {
+              id: 'n3',
+              type: 'action',
+              x: 800,
+              y: 180,
+              title: 'Tạo vụ việc điều tra',
+              input: 'ports_scanned, so_canh_bao_lien_quan',
+              action: "POST /api/incidents {title:'Nmap Scan từ {src_ip}', severity:'medium'}",
+              output: 'incident_id, trang_thai'
+            }
+          ],
+          connections: [
+            { from: 'n1', to: 'n2' },
+            { from: 'n2', to: 'n3' }
+          ]
+        },
+        ai_anomaly: {
+          ten: '🤖 Phản ứng AI Bất thường',
+          mo_ta: 'Tự động phản ứng khi AI Engine phát hiện điểm rủi ro >= 0.5',
+          nodes: [
+            {
+              id: 'n1',
+              type: 'trigger',
+              x: 80,
+              y: 200,
+              title: 'AI: Bất thường phát hiện',
+              input: 'WebSocket event type=ai_anomaly',
+              action: 'Kích hoạt khi diem_rui_ro >= 0.5 (Hành vi bất thường + Tăng đột biến)',
+              output: 'ip, diem_rui_ro, so_canh_bao_1h'
+            },
+            {
+              id: 'n2',
+              type: 'condition',
+              x: 460,
+              y: 200,
+              title: 'Đánh giá mức rủi ro',
+              input: 'diem_rui_ro, so_canh_bao_1h',
+              action: 'IF diem_rui_ro > 0.7 THEN chặn ngay\nELSE tạo vụ việc',
+              output: 'quyet_dinh: chan_ngay | tao_vu_viec'
+            },
+            {
+              id: 'n3',
+              type: 'action',
+              x: 840,
+              y: 100,
+              title: 'Chặn IP tự động',
+              input: 'quyet_dinh = chan_ngay',
+              action: "POST /api/response {action:'block_ip', ip, reason:'AI score > 0.7'}",
+              output: 'block_status, iptables_rule_id'
+            },
+            {
+              id: 'n4',
+              type: 'action',
+              x: 840,
+              y: 320,
+              title: 'Tạo vụ việc điều tra',
+              input: 'quyet_dinh = tao_vu_viec',
+              action: "POST /api/incidents {title:'AI: Bất thường IP {ip}', severity:'high'}",
+              output: 'incident_id'
+            }
+          ],
+          connections: [
+            { from: 'n1', to: 'n2' },
+            { from: 'n2', to: 'n3' },
+            { from: 'n2', to: 'n4' }
+          ]
         }
       };
     }
@@ -951,6 +1059,7 @@ window.soarApp = (function() {
         return;
       }
       this.clearCanvas();
+      this.clearDraftStorage();
       this.pushUndoState();
       this.updateStatus('Canvas đã được dọn sạch');
     }
@@ -1007,7 +1116,6 @@ window.soarApp = (function() {
       this.lastAlertPayload = alertPayload || this.lastAlertPayload;
       this.runLogs = [];
       this.openLogPanel();
-      this.logBody.innerHTML = '';
       this.updateStatus(`Đang chạy ${mode === 'real' ? 'thật' : 'mô phỏng'}...`);
 
       const orderedNodeIds = this.topologicalSort();
@@ -1021,8 +1129,9 @@ window.soarApp = (function() {
           continue;
         }
 
+        this.addLogLine('⏳', node.title, 'Đợi đến lượt xử lý');
         this.setNodeRunState(nodeId, 'processing', 'Đang xử lý...');
-        this.appendLog('⏳', node.title, 'Đang xử lý...', 'warn');
+        this.addLogLine('ℹ️', node.title, 'Bắt đầu xử lý');
 
         await this.sleep(1200);
 
@@ -1031,11 +1140,11 @@ window.soarApp = (function() {
         if (isSuccess) {
           successCount += 1;
           this.setNodeRunState(nodeId, 'success', 'Thành công');
-          this.appendLog('✅', node.title, 'Thành công', 'ok');
+          this.addLogLine('✅', node.title, 'Thành công');
         } else {
           failedCount += 1;
           this.setNodeRunState(nodeId, 'failed', 'Thất bại: điều kiện mô phỏng');
-          this.appendLog('❌', node.title, 'Thất bại: điều kiện mô phỏng', 'err');
+          this.addLogLine('❌', node.title, 'Thất bại: điều kiện mô phỏng');
         }
 
         this.animateOutgoingConnections(nodeId);
@@ -1046,8 +1155,7 @@ window.soarApp = (function() {
       }
 
       const elapsed = Date.now() - startTime;
-      const summary = `═══ HOÀN THÀNH: ${successCount}/${orderedNodeIds.length} node thành công · Thời gian: ${(elapsed / 1000).toFixed(1)}s ═══`;
-      this.appendLog('ℹ️', 'Tổng kết', summary, 'info');
+      this.finishLog(successCount, orderedNodeIds.length, Number((elapsed / 1000).toFixed(1)));
       this.updateStatus('Chạy playbook hoàn tất');
 
       this.saveRunHistory({
@@ -1085,7 +1193,11 @@ window.soarApp = (function() {
       }
 
       try {
-        await window.api.post('/api/response', { action: 'block_ip', ip });
+        if (window.socApi && typeof window.socApi.blockIP === 'function') {
+          await window.socApi.blockIP(ip);
+        } else {
+          await window.api.post('/api/response', { action: 'block_ip', ip });
+        }
         showToast(`🛡 Playbook đã chặn IP ${ip} tự động`, 'ok');
         this.appendLog('✅', lastNode.title, `Đã gọi API chặn IP ${ip}`, 'ok');
       } catch (_error) {
@@ -1190,17 +1302,36 @@ window.soarApp = (function() {
 
     openLogPanel() {
       if (this.logPanel) {
-        this.logPanel.classList.add('open');
+        this.logPanel.classList.remove('hidden');
+        this.logPanel.classList.add('visible');
+      }
+      if (this.logBody) {
+        this.logBody.innerHTML = '';
+      }
+      if (this.logFooter) {
+        this.logFooter.textContent = '';
+      }
+      if (this.logStatus) {
+        this.logStatus.textContent = 'Đang chạy...';
+        this.logStatus.style.color = '#FFCC00';
       }
     }
 
     closeLogPanel() {
       if (this.logPanel) {
-        this.logPanel.classList.remove('open');
+        this.logPanel.classList.add('hidden');
+        this.logPanel.classList.remove('visible');
       }
     }
 
-    appendLog(icon, nodeName, message, type) {
+    _logTypeByIcon(icon) {
+      if (icon === '⏳') return 'warn';
+      if (icon === '✅') return 'ok';
+      if (icon === '❌') return 'err';
+      return 'info';
+    }
+
+    addLogLine(icon, nodeName, message) {
       const now = new Date();
       const time = now.toLocaleTimeString('vi-VN');
       const lineText = `[${time}] ${icon} ${nodeName}: ${message}`;
@@ -1211,10 +1342,14 @@ window.soarApp = (function() {
       }
 
       const line = document.createElement('div');
-      line.className = `soar-log-line ${type || 'info'}`;
+      line.className = `soar-log-line ${this._logTypeByIcon(icon)}`;
       line.textContent = lineText;
       this.logBody.appendChild(line);
       this.logBody.scrollTop = this.logBody.scrollHeight;
+    }
+
+    appendLog(icon, nodeName, message) {
+      this.addLogLine(icon, nodeName, message);
     }
 
     downloadLog() {
@@ -1226,9 +1361,24 @@ window.soarApp = (function() {
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = `soar-run-${Date.now()}.log`;
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+      anchor.download = `playbook-log-${stamp}.txt`;
       anchor.click();
       URL.revokeObjectURL(url);
+    }
+
+    finishLog(success, total, elapsed) {
+      const hasError = success < total;
+      this.addLogLine('ℹ️', 'Tổng kết', '═'.repeat(50));
+      this.addLogLine('ℹ️', 'Tổng kết', `HOÀN THÀNH: ${success}/${total} node thành công · Thời gian: ${elapsed}s`);
+
+      if (this.logFooter) {
+        this.logFooter.textContent = `HOÀN THÀNH: ${success}/${total} node thành công · Thời gian: ${elapsed}s`;
+      }
+      if (this.logStatus) {
+        this.logStatus.textContent = hasError ? 'Có lỗi ✗' : 'Hoàn thành ✓';
+        this.logStatus.style.color = hasError ? '#FF4444' : '#00ff88';
+      }
     }
 
     togglePlaybook() {
@@ -1271,8 +1421,29 @@ window.soarApp = (function() {
       }
     }
 
+    loadDraftFromStorage() {
+      try {
+        const raw = localStorage.getItem(PLAYBOOK_DRAFT_KEY);
+        if (!raw || this.nodes.size > 0) {
+          return;
+        }
+        this.loadPlaybook(JSON.parse(raw));
+        this.updateStatus('Đã khôi phục bản nháp');
+      } catch (_error) {
+        this.clearDraftStorage();
+      }
+    }
+
     saveHistoryToStorage() {
       localStorage.setItem(HISTORY_KEY, JSON.stringify(this.runHistory.slice(0, 50)));
+    }
+
+    saveDraftToStorage(playbook = this.serializePlaybook()) {
+      localStorage.setItem(PLAYBOOK_DRAFT_KEY, JSON.stringify(playbook));
+    }
+
+    clearDraftStorage() {
+      localStorage.removeItem(PLAYBOOK_DRAFT_KEY);
     }
 
     saveRunHistory(entry) {
@@ -1354,6 +1525,7 @@ window.soarApp = (function() {
 
     loadPlaybookList() {
       this.renderHistory();
+      return;
       window.api.get('/api/playbooks/current/history')
         .then(historyList => {
           if (!Array.isArray(historyList) || historyList.length === 0) {
@@ -1532,3 +1704,9 @@ function showToast(msg, type = 'ok') {
 }
 
 window.soarApp.init();
+window.downloadLog = function() {
+  window.soarApp.downloadLog();
+};
+window.closeLogPanel = function() {
+  window.soarApp.closeLogPanel();
+};

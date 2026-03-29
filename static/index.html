@@ -593,15 +593,38 @@
 </div>
 
 <div id="page-threat-intel" class="page">
-  <div class="card">
-    <div class="card-hdr">
-      <div>
-        <div class="card-hdr-title">Threat Intelligence</div>
-        <div class="card-hdr-sub">IOC enrichment · nguồn đe dọa bên ngoài</div>
-      </div>
+  <div class="ti-page-wrap">
+    <div class="ti-header">
+      <h2>Threat Intelligence</h2>
+      <p>IOC Enrichment · Nguồn đe dọa bên ngoài</p>
     </div>
-    <div style="padding:24px;color:var(--muted);font-size:13px">
-      Module Threat Intel đang sẵn sàng để tích hợp feed IOC, reputation lookup và enrichment pipeline.
+
+    <div class="ti-search-row">
+      <input id="ti-search-input" type="text" placeholder="Nhập IP, domain, hash để tra cứu...">
+      <button id="ti-search-btn" type="button">🔍 Tra cứu</button>
+    </div>
+
+    <div class="ti-tabs">
+      <button type="button" class="ti-tab-btn active" data-ti-tab="lookup">Tra cứu IP</button>
+      <button type="button" class="ti-tab-btn" data-ti-tab="ioc">Danh sách IOC</button>
+      <button type="button" class="ti-tab-btn" data-ti-tab="feed">Feed nguồn</button>
+    </div>
+
+    <div id="ti-tab-panel-lookup" class="ti-tab-panel">
+      <div id="ti-lookup-loading" class="ti-loading" style="display:none">
+        <span class="ti-spinner"></span>
+        <span>Đang truy vấn threat intelligence...</span>
+      </div>
+      <div id="ti-lookup-error" class="ti-error" style="display:none"></div>
+      <div id="ti-lookup-result"></div>
+    </div>
+
+    <div id="ti-tab-panel-ioc" class="ti-tab-panel" style="display:none">
+      <div id="ti-ioc-view"></div>
+    </div>
+
+    <div id="ti-tab-panel-feed" class="ti-tab-panel" style="display:none">
+      <div id="ti-feed-view"></div>
     </div>
   </div>
 </div>
@@ -975,6 +998,8 @@
             <option value="ssh_bruteforce">Phản ứng SSH Brute Force</option>
             <option value="malicious_ip">Kiểm tra IP độc hại</option>
             <option value="suricata_alert">Cảnh báo Suricata</option>
+            <option value="nmap_scan">Phản ứng Quét Nmap Suricata</option>
+            <option value="ai_anomaly">Phản ứng AI Bất thường</option>
           </select>
           <button onclick="window.soarApp.loadTemplate()"
             style="padding:7px 10px;background:var(--bg-card);border:1px solid var(--border);
@@ -998,15 +1023,15 @@
           border-radius:6px;color:#8acb8a;font-size:11px;padding:4px 8px;z-index:20">
           100%
         </div>
-        <div id="run-log-panel" class="soar-log-panel">
-          <div class="soar-log-header">
-            <div>📋 Nhật ký thực thi</div>
-            <div style="display:flex;gap:8px">
-              <button type="button" onclick="window.soarApp.downloadLog()" class="soar-log-btn">📥 Tải log</button>
-              <button type="button" onclick="window.soarApp.closeLogPanel()" class="soar-log-btn">✕</button>
-            </div>
+        <div id="run-log-panel" class="log-panel hidden">
+          <div class="log-header">
+            <span>📋 Nhật ký thực thi</span>
+            <span id="log-status">Đang chạy...</span>
+            <button type="button" onclick="downloadLog()">📥 Tải log</button>
+            <button type="button" onclick="closeLogPanel()">✕</button>
           </div>
-          <div id="run-log-body" class="soar-log-body"></div>
+          <div id="log-body"></div>
+          <div id="log-footer"></div>
         </div>
       </div>
 
@@ -1031,6 +1056,22 @@
 
 <!-- ══ PAGE: AI ENGINE ═══════════════════════════════════════════ -->
 <div id="page-ai" class="page">
+  <div class="ai-stepper-wrap card" style="margin-bottom:12px">
+    <div class="card-hdr">
+      <div>
+        <div class="card-hdr-title">AI hoạt động như thế nào</div>
+        <div class="card-hdr-sub">Chuỗi xử lý tự động theo thời gian thực</div>
+      </div>
+    </div>
+    <div class="card-body" style="padding-top:12px">
+      <div id="ai-stepper" class="ai-stepper"></div>
+      <div class="ai-stepper-foot">
+        Phân tích hành vi · Cập nhật mới 60 giây · Chu kỳ gần nhất:
+        <span id="ai-stepper-updated">—</span>
+      </div>
+    </div>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
     <div class="kpi-card green">
       <div class="kpi-title">Bất thường AI (24h)</div>
@@ -1045,11 +1086,53 @@
       <div class="kpi-main amber" id="ai-avg">—</div>
     </div>
   </div>
+
+  <div class="card ai-monitor-card" style="margin-bottom:12px">
+    <div class="card-hdr">
+      <div>
+        <div class="card-hdr-title">4 LOẠI GIÁM SÁT ĐANG HOẠT ĐỘNG</div>
+        <div class="card-hdr-sub">Theo dõi hành vi thay vì hiển thị thuật toán</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <div id="ai-model-status-grid" class="ai-model-grid"></div>
+    </div>
+  </div>
+
+  <div class="ai-explain-layout" style="margin-bottom:12px">
+    <div class="card">
+      <div class="card-hdr">
+        <div>
+          <div class="card-hdr-title">TẠI SAO AI ĐÁNH DẤU IP NÀY?</div>
+          <div class="card-hdr-sub">Phân tích IP có điểm rủi ro cao nhất</div>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="ai-explain-main"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-hdr">
+          <div class="card-hdr-title">AI ĐANG THEO DÕI TỪ IP NÀY</div>
+        </div>
+        <div class="card-body">
+          <div id="ai-ip-mini-stats" class="ai-mini-grid"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-body">
+          <div id="ai-monitoring-widget"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-hdr">
       <div>
         <div class="card-hdr-title">Động cơ phát hiện AI — Cảnh báo bất thường</div>
-        <div class="card-hdr-sub">Mô hình kích hoạt: Isolation Forest · EWMA · CUSUM · Entropy · Behavioral Baseline</div>
+        <div class="card-hdr-sub">Danh sách cảnh báo AI theo thời gian thực</div>
       </div>
     </div>
     <div id="tbl-ai" style="overflow-x:auto">
@@ -1362,6 +1445,7 @@
 <!-- ══ SCRIPTS ══════════════════════════════════════════════════ -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="js/toast.js"></script>
+<script src="js/vn_format.js"></script>
 <script src="js/ai_labels.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/api.js"></script>
@@ -1369,9 +1453,10 @@
 <script src="js/charts.js"></script>
 <script src="js/triage.js"></script>
 <script src="js/app.js"></script>
+<script src="js/threat-intel.js"></script>
+<script src="js/ai-engine.js"></script>
 <script src="js/soar.js"></script>
 <script src="js/block_ip.js"></script>
-<script src="js/alert_detail_modal.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', ()=>{
   document.addEventListener('soc:data', e=>{
@@ -1410,25 +1495,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 </script>
 <script>
 // ══ INTEGRATION BRIDGE ══════════════════════════════════════════
-// Wire new modules (block_ip.js, alert_detail_modal.js) into existing app
-document.addEventListener('DOMContentLoaded', () => {
-  // 1. Override blockIP to use confirmBlockIP modal instead of simple confirm()
-  if (typeof confirmBlockIP === 'function') {
-    window.blockIP = function(ip) {
-      confirmBlockIP(ip, { analyst: 'admin' });
-    };
-  }
-
-  // 2. Initialize AlertDetailModal for investigate action
-  if (typeof AlertDetailModal === 'function') {
-    window._alertModal = new AlertDetailModal();
-    const origInvestigate = window.alertQueue?.investigate;
-    // Wire investigate button to open detail modal
-    window.alertDetailShow = function(alertData) {
-      window._alertModal.show(alertData);
-    };
-  }
-});
+// Cleanup: legacy integration bridge removed. app.js already integrates confirmBlockIP directly.
 </script>
 <script src="js/theme.js"></script>
 </body>

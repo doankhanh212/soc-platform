@@ -9,6 +9,8 @@ from routers.rules import router as rules_router
 from routers.auth import router as auth_router
 from routers.hunting import router as hunting_router
 from routers.ai import router as ai_router
+from routers.report import router as report_router
+from routers.threatintel import router as threatintel_router
 from routers.ws import ws_endpoint, broadcast_loop
 from services.rule_engine import rule_engine_loop
 from ai.runner import ai_engine_loop
@@ -38,6 +40,8 @@ app.include_router(rules_router)
 app.include_router(auth_router)
 app.include_router(hunting_router)
 app.include_router(ai_router)
+app.include_router(report_router)
+app.include_router(threatintel_router)
 
 @app.websocket("/ws")
 async def ws_route(ws: WebSocket):

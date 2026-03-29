@@ -13,10 +13,13 @@ Real field structure from wazuh-alerts-4.x-*:
   Rule:  rule.id, rule.level, rule.description, rule.groups, rule.firedtimes
          rule.mitre.id, rule.mitre.tactic  (on HIDS alerts)
 """
+import logging
+
 import httpx
 from config import get_settings
 
 cfg = get_settings()
+log = logging.getLogger(__name__)
 
 
 def _client() -> httpx.AsyncClient:
@@ -33,6 +36,12 @@ async def _search(index: str, body: dict) -> dict:
         r = await c.post(f"/{index}/_search", json=body)
         r.raise_for_status()
         return r.json()
+
+
+async def _index_document(index: str, body: dict) -> None:
+    async with _client() as c:
+        r = await c.post(f"/{index}/_doc", json=body)
+        r.raise_for_status()
 
 
 # ─── ALERTS ───────────────────────────────────────────────────────
@@ -182,6 +191,14 @@ async def get_top_ips_with_geo(size: int = 12) -> list[dict]:
                 "terms": {
                     "field": "data.src_ip",
                     "size": size
+                },
+                "aggs": {
+                    "geo": {
+                        "top_hits": {
+                            "size": 1,
+                            "_source": ["GeoLocation"]
+                        }
+                    }
                 }
             }
         }
@@ -190,41 +207,57 @@ async def get_top_ips_with_geo(size: int = 12) -> list[dict]:
     aggs = result.get("aggregations", {})
     seen: dict = {}
 
-    for b in aggs.get("by_srcip", {}).get("buckets", []):
-        ip = b["key"]
+    def _merge_bucket(bucket: dict) -> None:
+        ip = bucket["key"]
         if not ip or ip in ("127.0.0.1", "::1", "0.0.0.0"):
-            continue
-        hits = b.get("geo", {}).get("hits", {}).get("hits", [])
+            return
+        hits = bucket.get("geo", {}).get("hits", {}).get("hits", [])
         geo = hits[0]["_source"].get("GeoLocation", {}) if hits else {}
         loc = geo.get("location", {})
-        seen[ip] = {
-            "ip":      ip,
-            "count":   b["doc_count"],
-            "country": geo.get("country_name", ""),
-            "city":    geo.get("city_name", ""),
-            "lat":     float(loc.get("lat", 0) or 0),
-            "lon":     float(loc.get("lon", 0) or 0),
-        }
+        current = seen.get(ip, {
+            "ip": ip,
+            "count": 0,
+            "country": "",
+            "city": "",
+            "lat": 0.0,
+            "lon": 0.0,
+        })
+        current["count"] += bucket["doc_count"]
+        if geo:
+            current["country"] = current["country"] or geo.get("country_name", "")
+            current["city"] = current["city"] or geo.get("city_name", "")
+            current["lat"] = current["lat"] or float(loc.get("lat", 0) or 0)
+            current["lon"] = current["lon"] or float(loc.get("lon", 0) or 0)
+        seen[ip] = current
 
+    for b in aggs.get("by_srcip", {}).get("buckets", []):
+        _merge_bucket(b)
     for b in aggs.get("by_src_ip", {}).get("buckets", []):
-        ip = b["key"]
-        if not ip or ip in ("127.0.0.1", "::1", "0.0.0.0"):
-            continue
-        if ip in seen:
-            seen[ip]["count"] += b["doc_count"]
-        else:
-            seen[ip] = {
-                "ip":      ip,
-                "count":   b["doc_count"],
-                "country": "",
-                "city":    "",
-                "lat":     0.0,
-                "lon":     0.0,
-            }
+        _merge_bucket(b)
 
     return sorted(seen.values(),
                   key=lambda x: x["count"],
                   reverse=True)[:size]
+
+
+async def index_ai_anomaly_alert(result: dict) -> None:
+    doc = {
+        "@timestamp": result.get("timestamp"),
+        "src_ip": result.get("src_ip", ""),
+        "risk_score": result.get("risk_score", 0.0),
+        "risk_level": result.get("risk_level", "LOW"),
+        "anomaly_score": result.get("anomaly_score", 0.0),
+        "triggered_models": result.get("triggered_models", []),
+        "model_scores": result.get("model_scores", {}),
+        "risk_components": result.get("risk_components", {}),
+        "features": result.get("features", {}),
+        "should_block": result.get("should_block", False),
+        "explanation": result.get("explanation", {}),
+    }
+    try:
+        await _index_document(cfg.index_ai_anomaly, doc)
+    except Exception as e:
+        log.warning("AI anomaly index write failed: %s", e)
 
 
 async def get_alerts_over_time(hours: int = 24) -> list[dict]:

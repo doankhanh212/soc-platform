@@ -6,6 +6,7 @@ from services import (
     get_top_ips_with_geo, get_alerts_over_time,
     get_top_rules, get_suricata_signature_stats,
 )
+from services.cases import case_stats
 from config import get_settings
 
 log = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ async def ws_endpoint(ws: WebSocket):
 
 async def _push_snapshot():
     try:
-        kpis, alerts, suri, ai, top_ips, geo_ips, tl, rules, sigs = await asyncio.gather(
+        kpis, alerts, suri, ai, top_ips, geo_ips, tl, rules, sigs, cstats = await asyncio.gather(
             get_dashboard_kpis(),
             get_recent_alerts(size=50, min_level=3),
             get_suricata_alerts(size=50),
@@ -59,6 +60,7 @@ async def _push_snapshot():
             get_alerts_over_time(hours=24),
             get_top_rules(size=8),
             get_suricata_signature_stats(),
+            asyncio.to_thread(case_stats),
             return_exceptions=True,
         )
         # Replace exceptions with empty defaults
@@ -75,6 +77,7 @@ async def _push_snapshot():
             "timeline":         safe(tl,      []),
             "top_rules":        safe(rules,   []),
             "suricata_sigs":    safe(sigs,    []),
+            "case_stats":       safe(cstats,  {}),
         })
     except Exception as e:
         log.error("WS snapshot error: %s", e)

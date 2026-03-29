@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, Body
 import re, subprocess
 from services import (
     get_recent_alerts, get_suricata_alerts, get_ai_anomaly_alerts,
@@ -70,6 +70,23 @@ async def suricata_sigs():
 
 @response_router.post("/block-ip")
 async def block_ip(ip: str = Query(...)):
+    return await _block_ip_core(ip)
+
+
+@response_router.post("")
+async def response_action(payload: dict = Body(...)):
+    """
+    Compatibility endpoint:
+      POST /api/response { "action": "block_ip", "ip": "x.x.x.x" }
+    """
+    action = str(payload.get("action", "")).strip().lower()
+    ip = str(payload.get("ip", "")).strip()
+    if action != "block_ip":
+        raise HTTPException(400, "action không hỗ trợ")
+    return await _block_ip_core(ip)
+
+
+async def _block_ip_core(ip: str):
     if not re.match(r"^\d{1,3}(\.\d{1,3}){3}$", ip):
         raise HTTPException(400, "IP không hợp lệ")
     try:

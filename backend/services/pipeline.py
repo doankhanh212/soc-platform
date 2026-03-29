@@ -16,6 +16,7 @@ from ai.model import compute_anomaly_score
 from ai.scoring import compute_risk_score
 from ai.explain import explain_risk
 from config import get_settings
+from services.opensearch import index_ai_anomaly_alert
 
 log = logging.getLogger("ai_pipeline")
 cfg = get_settings()
@@ -23,6 +24,13 @@ cfg = get_settings()
 # ── Lịch sử phân tích (in-memory ring buffer) ────────────────────
 _history: list[dict] = []
 _MAX_HISTORY = 500
+
+
+def _derive_triggered_models(model_scores: dict, threshold: float = 0.5) -> list[str]:
+    return [
+        name for name, score in model_scores.items()
+        if float(score or 0) >= threshold
+    ]
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -87,6 +95,8 @@ def analyze_single_event(event: dict) -> dict:
         "anomaly_score":   anomaly_result["anomaly_score"],
         "risk_score":      risk_result["risk_score"],
         "risk_level":      risk_result["risk_level"],
+        "triggered_models": _derive_triggered_models(anomaly_result["model_scores"]),
+        "should_block":    risk_result["risk_score"] >= cfg.ai_risk_threshold,
         "explanation":     explanation,
         "features":        features,
         "model_scores":    anomaly_result["model_scores"],
@@ -144,12 +154,15 @@ async def analyze_batch() -> list[dict]:
             "anomaly_score": anomaly_result["anomaly_score"],
             "risk_score":    risk_result["risk_score"],
             "risk_level":    risk_result["risk_level"],
+            "triggered_models": _derive_triggered_models(anomaly_result["model_scores"]),
+            "should_block":  risk_result["risk_score"] >= cfg.ai_risk_threshold,
             "explanation":   explanation,
             "features":      features,
             "model_scores":  anomaly_result["model_scores"],
             "risk_components": risk_result["components"],
         }
         results.append(result)
+        await index_ai_anomaly_alert(result)
 
         # Auto-response nếu HIGH + config bật
         if (risk_result["risk_level"] == "HIGH"
