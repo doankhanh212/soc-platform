@@ -15,6 +15,11 @@ const BASE = {
 
 let _tl=null, _sev=null, _tactics=null, _rules=null, _suri=null;
 
+function truncateLabel(str, max = 20){
+  const text = String(str ?? '');
+  return text.length > max ? `${text.substring(0, max)}...` : text;
+}
+
 /* ── Timeline ──────────────────────────────────── */
 function initTimeline(id){
   const ctx=document.getElementById(id); if(!ctx) return;
@@ -107,6 +112,21 @@ function initRulesBar(id){
     }]},
     options:{
       ...BASE,
+      scales:{
+        ...BASE.scales,
+        x:{
+          ...BASE.scales.x,
+          ticks:{
+            ...(BASE.scales.x?.ticks || {}),
+            maxRotation:0,
+            minRotation:0,
+            callback:function(value){
+              const raw = this.getLabelForValue(value);
+              return truncateLabel(raw, 18);
+            },
+          },
+        },
+      },
       plugins:{...BASE.plugins,tooltip:{callbacks:{
         title:i=>[i[0].label],
         label:i=>` Số lượng: ${i.raw}`,
@@ -118,7 +138,7 @@ function updateRulesBar(alerts){
   if(!_rules) return;
   const counts={};
   alerts.forEach(a=>{
-    const key = a?.rule?.description ? `${a.rule.description.slice(0,28)}…` : 'Unknown';
+    const key = a?.rule?.description || 'Unknown';
     counts[key]=(counts[key]||0)+1;
   });
   const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,6);
@@ -155,10 +175,7 @@ function updateSuricataBar(alerts){
 
 function updateRulesBarDirect(rules){
   if(!_rules) return;
-  _rules.data.labels = rules.map(r => {
-    const name = r?.rule || 'Không xác định';
-    return name.length > 32 ? `${name.slice(0,32)}…` : name;
-  });
+  _rules.data.labels = rules.map(r => r?.rule || 'Không xác định');
   _rules.data.datasets[0].data = rules.map(r => r?.count || 0);
   _rules.update('none');
 }

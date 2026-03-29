@@ -10,6 +10,9 @@ Hai chế độ:
 """
 import logging
 import time
+import asyncio
+from datetime import datetime
+from pathlib import Path
 
 from ai.extractor import extract_features, extract_features_batch
 from ai.model import compute_anomaly_score
@@ -24,6 +27,10 @@ cfg = get_settings()
 # ── Lịch sử phân tích (in-memory ring buffer) ────────────────────
 _history: list[dict] = []
 _MAX_HISTORY = 500
+AUTO_BLOCK_BASE_THRESHOLD = 0.70
+AUTO_BLOCK_COMBINED_RISK = 0.65
+AUTO_BLOCK_COMBINED_ALERTS_1H = 1000
+SOC_BLOCK_LOG = Path("/var/log/soc_blocks.log")
 
 
 def _derive_triggered_models(model_scores: dict, threshold: float = 0.5) -> list[str]:
@@ -31,6 +38,111 @@ def _derive_triggered_models(model_scores: dict, threshold: float = 0.5) -> list
         name for name, score in model_scores.items()
         if float(score or 0) >= threshold
     ]
+
+
+def _estimate_alert_count_1h(features: dict) -> int:
+    """Chuan hoa tan suat canh bao ve moc 1 gio de dung cho dieu kien auto-block."""
+    if not isinstance(features, dict):
+        return 0
+
+    candidates: list[int] = []
+
+    raw_alerts_1h = features.get("alerts_1h")
+    if raw_alerts_1h is not None:
+        try:
+            candidates.append(max(0, int(float(raw_alerts_1h))))
+        except (TypeError, ValueError):
+            pass
+
+    # single-event extractor: alert_frequency trong 5 phut
+    raw_alert_frequency = features.get("alert_frequency")
+    try:
+        alert_frequency = float(raw_alert_frequency or 0.0)
+        if alert_frequency > 0:
+            candidates.append(max(0, int(alert_frequency * 12)))
+    except (TypeError, ValueError):
+        pass
+
+    # batch extractor: connection_count trong 15 phut
+    raw_connection_count = features.get("connection_count")
+    try:
+        connection_count = float(raw_connection_count or 0.0)
+        if connection_count > 0:
+            candidates.append(max(0, int(connection_count * 4)))
+    except (TypeError, ValueError):
+        pass
+
+    # request_rate la so canh bao/phut
+    raw_request_rate = features.get("request_rate")
+    try:
+        request_rate = float(raw_request_rate or 0.0)
+        if request_rate > 0:
+            candidates.append(max(0, int(request_rate * 60)))
+    except (TypeError, ValueError):
+        pass
+
+    return max(candidates, default=0)
+
+
+def _should_auto_block(risk_score: float, features: dict) -> bool:
+    """Dieu kien block:
+    - risk >= 0.70, hoac
+    - risk >= 0.65 va so canh bao 1h >= 1000
+    """
+    alerts_1h = _estimate_alert_count_1h(features)
+    return (
+        float(risk_score or 0.0) >= AUTO_BLOCK_BASE_THRESHOLD
+        or (
+            float(risk_score or 0.0) >= AUTO_BLOCK_COMBINED_RISK
+            and alerts_1h >= AUTO_BLOCK_COMBINED_ALERTS_1H
+        )
+    )
+
+
+def _append_soc_block_log(ip: str, risk_score: float, reason: str) -> None:
+    """Best-effort log cho moi truong production Linux."""
+    try:
+        with SOC_BLOCK_LOG.open("a", encoding="utf-8") as f:
+            f.write(f"{datetime.now().isoformat()} BLOCKED {ip} score={risk_score:.3f} reason={reason}\n")
+    except Exception:
+        # Khong chan luong chinh khi khong co quyen ghi /var/log
+        pass
+
+
+async def auto_block_ip(ip: str, risk_score: float, reason: str) -> bool:
+    """Goi firewall block + log + broadcast websocket event."""
+    from response.firewall import block_ip
+
+    try:
+        block_result = await asyncio.to_thread(block_ip, ip, reason)
+    except Exception as e:
+        log.error("Auto block failed for %s: %s", ip, e)
+        return False
+
+    status = str(block_result.get("status", "")).strip().lower()
+    if status not in {"blocked", "already_blocked"}:
+        log.error("Auto block failed for %s: %s", ip, block_result.get("message", "unknown error"))
+        return False
+
+    _append_soc_block_log(ip=ip, risk_score=risk_score, reason=reason)
+    log.info("AUTO BLOCKED: %s score=%.3f reason=%s", ip, risk_score, reason)
+
+    payload = {
+        "type": "ip_blocked",
+        "data": {
+            "ip": ip,
+            "risk_score": float(risk_score or 0.0),
+            "reason": reason,
+            "auto": True,
+        },
+    }
+    try:
+        from routers.ws import manager
+        await manager.broadcast(payload)
+    except Exception as e:
+        log.warning("WS broadcast failed for auto block %s: %s", ip, e)
+
+    return True
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -96,7 +208,7 @@ def analyze_single_event(event: dict) -> dict:
         "risk_score":      risk_result["risk_score"],
         "risk_level":      risk_result["risk_level"],
         "triggered_models": _derive_triggered_models(anomaly_result["model_scores"]),
-        "should_block":    risk_result["risk_score"] >= cfg.ai_risk_threshold,
+        "should_block":    _should_auto_block(risk_result["risk_score"], features),
         "explanation":     explanation,
         "features":        features,
         "model_scores":    anomaly_result["model_scores"],
@@ -124,7 +236,7 @@ async def analyze_batch() -> list[dict]:
     Lấy data từ OpenSearch → phân tích tất cả IPs trong 15 phút.
     Tự động block nếu risk_level = HIGH và config bật auto-block.
     """
-    from response.firewall import block_ip, is_blocked
+    from response.firewall import is_blocked
 
     features_list = await extract_features_batch(window_minutes=15)
     if not features_list:
@@ -147,6 +259,8 @@ async def analyze_batch() -> list[dict]:
 
         # Explanation
         explanation = explain_risk({}, features, anomaly_result, risk_result)
+        alerts_1h = _estimate_alert_count_1h(features)
+        should_block = _should_auto_block(risk_result["risk_score"], features)
 
         result = {
             "src_ip":        ip,
@@ -155,22 +269,37 @@ async def analyze_batch() -> list[dict]:
             "risk_score":    risk_result["risk_score"],
             "risk_level":    risk_result["risk_level"],
             "triggered_models": _derive_triggered_models(anomaly_result["model_scores"]),
-            "should_block":  risk_result["risk_score"] >= cfg.ai_risk_threshold,
+            "should_block":  should_block,
             "explanation":   explanation,
             "features":      features,
+            "alerts_1h":     alerts_1h,
             "model_scores":  anomaly_result["model_scores"],
             "risk_components": risk_result["components"],
+            "da_chan": False,
+            "auto_block_reason": "",
         }
-        results.append(result)
-        await index_ai_anomaly_alert(result)
 
         # Auto-response nếu HIGH + config bật
-        if (risk_result["risk_level"] == "HIGH"
-                and cfg.ai_block_auto
-                and not is_blocked(ip)):
-            reason = (f"AI auto-block: risk_score={risk_result['risk_score']:.3f}, "
-                      f"models={list(anomaly_result['model_scores'].keys())}")
-            block_ip(ip, reason)
+        if cfg.ai_block_auto and should_block:
+            if is_blocked(ip):
+                result["da_chan"] = True
+                result["auto_block_reason"] = "IP da nam trong danh sach chan"
+            else:
+                reason = (
+                    f"AI auto-block: risk_score={risk_result['risk_score']:.3f}, "
+                    f"alerts_1h={alerts_1h}, models={result['triggered_models']}"
+                )
+                blocked = await auto_block_ip(
+                    ip=ip,
+                    risk_score=float(risk_result["risk_score"] or 0.0),
+                    reason=reason,
+                )
+                result["da_chan"] = bool(blocked)
+                if blocked:
+                    result["auto_block_reason"] = reason
+
+        results.append(result)
+        await index_ai_anomaly_alert(result)
 
         # Lưu lịch sử
         _history.append(result)

@@ -157,15 +157,16 @@ async def models_status():
 
 
 @router.get("/anomalies")
-async def anomalies(
-    limit: int = Query(20, ge=1, le=200),
+async def get_anomalies(
+    limit: int = Query(500, ge=1, le=5000),
     sort: str = Query("risk_desc"),
 ):
     """
     Danh sách anomalies đã enrich cho Explainable panel.
     """
     try:
-        ai_alerts = await get_ai_anomaly_alerts(size=800)
+        fetch_size = max(int(limit or 0), 800)
+        ai_alerts = await get_ai_anomaly_alerts(size=fetch_size)
     except Exception:
         ai_alerts = []
 
@@ -240,9 +241,11 @@ async def anomalies(
             "quoc_gia": latest_geo_country,
             "asn": "AS-Unknown",
             "mo_hinh_kich_hoat": item.get("triggered_models", []) or [],
+            "da_chan": bool(item.get("da_chan", False)),
+            "auto_block_reason": str(item.get("auto_block_reason", "") or ""),
             "ly_do": {
                 "tong_canh_bao": total_count,
-                "so_canh_bao_1h": last_hour_count,
+                "so_canh_bao_1h": max(last_hour_count, int(item.get("alerts_1h", 0) or 0)),
                 "unique_dest_ports": len(unique_ports),
                 "leo_thang_quyen": privilege_escalation,
                 "file_bi_sua": file_changed,

@@ -605,27 +605,25 @@
     </div>
 
     <div class="ti-tabs">
-      <button type="button" class="ti-tab-btn active" data-ti-tab="lookup">Tra cứu IP</button>
-      <button type="button" class="ti-tab-btn" data-ti-tab="ioc">Danh sách IOC</button>
-      <button type="button" class="ti-tab-btn" data-ti-tab="feed">Feed nguồn</button>
+      <button type="button" class="ti-tab-btn active">Tra cứu IP</button>
+      <button type="button" class="ti-tab-btn">Danh sách IOC</button>
+      <button type="button" class="ti-tab-btn">Feed nguồn</button>
     </div>
 
-    <div id="ti-tab-panel-lookup" class="ti-tab-panel">
-      <div id="ti-lookup-loading" class="ti-loading" style="display:none">
+    <div id="ti-search-panel" class="ti-tab-panel">
+      <div id="ti-loading" class="ti-loading" style="display:none">
         <span class="ti-spinner"></span>
         <span>Đang truy vấn threat intelligence...</span>
       </div>
-      <div id="ti-lookup-error" class="ti-error" style="display:none"></div>
-      <div id="ti-lookup-result"></div>
+      <div id="ti-error" class="ti-error" style="display:none"></div>
+      <div id="ti-result-area">
+        <p style="color:#666;font-size:13px">Nhập IP, domain hoặc hash để tra cứu danh tiếng...</p>
+      </div>
     </div>
 
-    <div id="ti-tab-panel-ioc" class="ti-tab-panel" style="display:none">
-      <div id="ti-ioc-view"></div>
-    </div>
+    <div id="ti-ioc-panel" class="ti-tab-panel" style="display:none"></div>
 
-    <div id="ti-tab-panel-feed" class="ti-tab-panel" style="display:none">
-      <div id="ti-feed-view"></div>
-    </div>
+    <div id="ti-feed-panel" class="ti-tab-panel" style="display:none"></div>
   </div>
 </div>
 
@@ -840,23 +838,11 @@
         Security Orchestration · Automation · Response
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <span style="font-size:12px;color:var(--muted)">Trạng thái:</span>
-      <span id="soar-auto-badge" style="display:none;font-size:10px;padding:3px 8px;
-        border:1px solid rgba(0,255,136,.45);border-radius:999px;color:#00ff88;
-        background:rgba(0,255,136,.08);font-weight:700;letter-spacing:.05em">
-        ● TỰ ĐỘNG BẬT
-      </span>
-      <button id="soar-toggle-btn" onclick="window.soarApp.togglePlaybook()"
-        style="position:relative;width:50px;height:26px;border-radius:13px;
-               background:#2a4a2a;border:1px solid var(--border);
-               cursor:pointer;transition:all .3s;display:flex;
-               align-items:center;padding:0 2px">
-        <div id="soar-toggle-dot" style="width:22px;height:22px;
-          background:var(--muted);border-radius:50%;
-          transition:all .3s;margin-left:0"></div>
-      </button>
-    </div>
+    <span id="soar-auto-badge" style="display:none;font-size:10px;padding:3px 8px;
+      border:1px solid rgba(0,255,136,.45);border-radius:999px;color:#00ff88;
+      background:rgba(0,255,136,.08);font-weight:700;letter-spacing:.05em">
+      ● TỰ ĐỘNG BẬT
+    </span>
   </div>
 
   <!-- Main layout: sidebar + canvas -->
@@ -1023,15 +1009,23 @@
           border-radius:6px;color:#8acb8a;font-size:11px;padding:4px 8px;z-index:20">
           100%
         </div>
-        <div id="run-log-panel" class="log-panel hidden">
-          <div class="log-header">
-            <span>📋 Nhật ký thực thi</span>
-            <span id="log-status">Đang chạy...</span>
-            <button type="button" onclick="downloadLog()">📥 Tải log</button>
-            <button type="button" onclick="closeLogPanel()">✕</button>
+        <div id="run-log-panel">
+          <div style="display:flex;align-items:center;gap:12px;padding:8px 16px;
+                      border-bottom:1px solid #1a3a1a;flex-shrink:0">
+            <span style="color:#00ff88;font-size:13px;font-weight:500">📋 Nhật ký thực thi</span>
+            <span id="log-status" style="color:#FFCC00;font-size:12px">Đang chạy...</span>
+            <span style="flex:1"></span>
+            <button onclick="downloadLog()"
+              style="background:transparent;border:1px solid #1a3a1a;color:#888;
+                     padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer">
+              📥 Tải log
+            </button>
+            <button onclick="closeLogPanel()"
+              style="background:transparent;border:none;color:#666;font-size:16px;cursor:pointer">✕</button>
           </div>
-          <div id="log-body"></div>
-          <div id="log-footer"></div>
+          <div id="log-body"
+            style="flex:1;overflow-y:auto;padding:8px 16px;font-family:monospace;font-size:12px">
+          </div>
         </div>
       </div>
 
@@ -1056,92 +1050,97 @@
 
 <!-- ══ PAGE: AI ENGINE ═══════════════════════════════════════════ -->
 <div id="page-ai" class="page">
-  <div class="ai-stepper-wrap card" style="margin-bottom:12px">
-    <div class="card-hdr">
-      <div>
-        <div class="card-hdr-title">AI hoạt động như thế nào</div>
-        <div class="card-hdr-sub">Chuỗi xử lý tự động theo thời gian thực</div>
-      </div>
-    </div>
-    <div class="card-body" style="padding-top:12px">
-      <div id="ai-stepper" class="ai-stepper"></div>
-      <div class="ai-stepper-foot">
-        Phân tích hành vi · Cập nhật mới 60 giây · Chu kỳ gần nhất:
-        <span id="ai-stepper-updated">—</span>
-      </div>
-    </div>
-  </div>
-
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
-    <div class="kpi-card green">
-      <div class="kpi-title">Bất thường AI (24h)</div>
-      <div class="kpi-main green" id="ai-total">—</div>
-    </div>
-    <div class="kpi-card red">
-      <div class="kpi-title">IP tự động chặn</div>
-      <div class="kpi-main red" id="ai-blocked">—</div>
-    </div>
-    <div class="kpi-card amber">
-      <div class="kpi-title">Điểm rủi ro TB</div>
-      <div class="kpi-main amber" id="ai-avg">—</div>
-    </div>
-  </div>
-
-  <div class="card ai-monitor-card" style="margin-bottom:12px">
-    <div class="card-hdr">
-      <div>
-        <div class="card-hdr-title">4 LOẠI GIÁM SÁT ĐANG HOẠT ĐỘNG</div>
-        <div class="card-hdr-sub">Theo dõi hành vi thay vì hiển thị thuật toán</div>
-      </div>
-    </div>
-    <div class="card-body">
-      <div id="ai-model-status-grid" class="ai-model-grid"></div>
-    </div>
-  </div>
-
-  <div class="ai-explain-layout" style="margin-bottom:12px">
-    <div class="card">
+  <div id="ai-engine-page" class="page-content">
+    <div id="ai-stepper-section" class="ai-stepper-wrap card">
       <div class="card-hdr">
         <div>
-          <div class="card-hdr-title">TẠI SAO AI ĐÁNH DẤU IP NÀY?</div>
-          <div class="card-hdr-sub">Phân tích IP có điểm rủi ro cao nhất</div>
+          <div class="card-hdr-title">AI hoạt động như thế nào</div>
+          <div class="card-hdr-sub">Chuỗi xử lý tự động theo thời gian thực</div>
+        </div>
+      </div>
+      <div class="card-body" style="padding-top:12px">
+        <div id="ai-stepper" class="ai-stepper"></div>
+        <div class="ai-stepper-foot">
+          Phân tích hành vi · Cập nhật mới 60 giây · Chu kỳ gần nhất:
+          <span id="ai-stepper-updated">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="ai-metrics-section" class="ai-metric-grid">
+      <div class="kpi-card green">
+        <div class="kpi-title">Bất thường AI (24h)</div>
+        <div class="kpi-main green" id="ai-total">—</div>
+      </div>
+      <div class="kpi-card red">
+        <div class="kpi-title">IP tự động chặn</div>
+        <div class="kpi-main red" id="ai-blocked">—</div>
+      </div>
+      <div class="kpi-card amber">
+        <div class="kpi-title">Điểm rủi ro TB</div>
+        <div class="kpi-main amber" id="ai-avg">—</div>
+      </div>
+    </div>
+
+    <div id="ai-monitors-section" class="card ai-monitor-card">
+      <div class="card-hdr">
+        <div>
+          <div class="card-hdr-title">4 LOẠI GIÁM SÁT ĐANG HOẠT ĐỘNG</div>
+          <div class="card-hdr-sub">Theo dõi hành vi thay vì hiển thị thuật toán</div>
         </div>
       </div>
       <div class="card-body">
-        <div id="ai-explain-main"></div>
+        <div id="ai-model-status-grid" class="ai-monitor-grid"></div>
       </div>
     </div>
-    <div>
-      <div class="card" style="margin-bottom:12px">
-        <div class="card-hdr">
-          <div class="card-hdr-title">AI ĐANG THEO DÕI TỪ IP NÀY</div>
-        </div>
-        <div class="card-body">
-          <div id="ai-ip-mini-stats" class="ai-mini-grid"></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-body">
-          <div id="ai-monitoring-widget"></div>
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <div class="card">
-    <div class="card-hdr">
-      <div>
-        <div class="card-hdr-title">Động cơ phát hiện AI — Cảnh báo bất thường</div>
-        <div class="card-hdr-sub">Danh sách cảnh báo AI theo thời gian thực</div>
+    <div id="ai-main-section" style="display:grid;grid-template-columns:1fr 360px;gap:16px">
+      <div id="ai-table-section">
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-hdr">
+            <div>
+              <div class="card-hdr-title">TẠI SAO AI ĐÁNH DẤU IP NÀY?</div>
+              <div class="card-hdr-sub">Phân tích IP có điểm rủi ro cao nhất</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="ai-explain-main"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-hdr">
+            <div>
+              <div class="card-hdr-title">Động cơ phát hiện AI — Cảnh báo bất thường</div>
+              <div class="card-hdr-sub">Danh sách cảnh báo AI theo thời gian thực</div>
+            </div>
+          </div>
+          <div id="tbl-ai" style="overflow-x:auto">
+            <table class="soc-table">
+              <thead><tr><th>Thời gian</th><th>IP</th><th>Điểm rủi ro</th><th>Mô hình kích hoạt</th><th>Hành động</th></tr></thead>
+              <tbody><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">
+                Đang chờ kết quả từ AI Engine...
+              </td></tr></tbody>
+            </table>
+          </div>
+        </div>
       </div>
-    </div>
-    <div id="tbl-ai" style="overflow-x:auto">
-      <table class="soc-table">
-        <thead><tr><th>Thời gian</th><th>IP</th><th>Điểm rủi ro</th><th>Mô hình kích hoạt</th><th>Hành động</th></tr></thead>
-        <tbody><tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">
-          Đang chờ kết quả từ AI Engine...
-        </td></tr></tbody>
-      </table>
+
+      <div id="ai-sidebar-section">
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-hdr">
+            <div class="card-hdr-title">AI ĐANG THEO DÕI TỪ IP NÀY</div>
+          </div>
+          <div class="card-body">
+            <div id="ai-ip-mini-stats" class="ai-mini-grid"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-body">
+            <div id="ai-monitoring-widget"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1457,42 +1456,6 @@
 <script src="js/ai-engine.js"></script>
 <script src="js/soar.js"></script>
 <script src="js/block_ip.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', ()=>{
-  document.addEventListener('soc:data', e=>{
-    const d=e.detail;
-    if(d.type!=='snapshot'||!d.ai_alerts) return;
-    const total=d.ai_alerts.length;
-    const blocked=d.ai_alerts.filter(a=>a.should_block).length;
-    const avg=total?(d.ai_alerts.reduce((s,a)=>s+(a.risk_score||0),0)/total).toFixed(3):'—';
-    const el=id=>document.getElementById(id);
-    if(el('ai-total'))   el('ai-total').textContent=total;
-    if(el('ai-blocked')) el('ai-blocked').textContent=blocked;
-    if(el('ai-avg'))     el('ai-avg').textContent=avg;
-    const tbody=document.querySelector('#tbl-ai tbody');
-    if(!tbody) return;
-    if(!total){tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:32px">Không có bất thường AI</td></tr>';return;}
-    tbody.innerHTML=d.ai_alerts.map(a=>{
-      const sc=parseFloat(a.risk_score||0);
-      const col=sc>=.75?'var(--red)':sc>=.5?'var(--amber)':'var(--green)';
-      const ts=new Date(a['@timestamp']).toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});
-      const modelHtml = typeof renderModelBadges === 'function'
-        ? renderModelBadges(a.triggered_models||[])
-        : (a.triggered_models||[]).join(', ');
-      const actionHtml = typeof renderActionSuggestion === 'function'
-        ? renderActionSuggestion(sc)
-        : (a.should_block?'<span class="badge badge-critical">ĐÃ CHẶN</span>':'');
-      return `<tr>
-        <td class="mono">${ts}</td>
-        <td style="color:var(--cyan);font-family:monospace">${a.src_ip||'—'}</td>
-        <td style="color:${col};font-weight:700;font-family:'Share Tech Mono',monospace">${sc.toFixed(3)}</td>
-        <td>${modelHtml}</td>
-        <td>${actionHtml}</td>
-      </tr>`;
-    }).join('');
-  });
-});
-</script>
 <script>
 // ══ INTEGRATION BRIDGE ══════════════════════════════════════════
 // Cleanup: legacy integration bridge removed. app.js already integrates confirmBlockIP directly.

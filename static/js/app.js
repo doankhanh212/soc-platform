@@ -43,6 +43,14 @@ function fmtDate(iso){
   return new Date(iso).toLocaleDateString('vi-VN');
 }
 
+function formatBadgeCount(count){
+  const n = Number(count || 0);
+  if(typeof window.formatSoLan === 'function'){
+    return window.formatSoLan(n);
+  }
+  return n.toLocaleString('vi-VN');
+}
+
 const PAGE_SIZE = 30;
 let _wazuhAll = [], _suriAll = [];
 let _wazuhPage = 1, _suriPage = 1;
@@ -120,6 +128,9 @@ function navigate(page) {
   }
   if(page === 'cases' && window.casesApp) {
     window.casesApp.loadAll();
+  }
+  if(page === 'ai' && window.aiEngineApp && typeof window.aiEngineApp.onPageActive === 'function') {
+    window.aiEngineApp.onPageActive();
   }
 }
 window.navigate = navigate;
@@ -514,7 +525,7 @@ document.addEventListener('soc:data', e=>{
     const alertsBadge = document.getElementById('nav-badge-alerts');
     const notif = document.getElementById('notif-count');
     const critical = d.kpis.critical_alerts || 0;
-    if(alertsBadge) alertsBadge.textContent = (d.kpis.total_alerts_24h || 0).toLocaleString();
+    if(alertsBadge) alertsBadge.textContent = formatBadgeCount(d.kpis.total_alerts_24h || 0);
     if(notif){
       notif.textContent = critical;
       notif.style.display = critical > 0 ? 'block' : 'none';
@@ -529,7 +540,7 @@ document.addEventListener('soc:data', e=>{
     if(el('cs-stat-done'))   el('cs-stat-done').textContent   = cs.resolved||0;
     if(el('cs-stat-triaged'))el('cs-stat-triaged').textContent= cs.triaged_today||0;
     if(el('nav-badge-cases')) el('nav-badge-cases').textContent =
-      ((cs.new||0) + (cs.in_progress||0) + (cs.escalated||0)).toLocaleString();
+      formatBadgeCount((cs.new||0) + (cs.in_progress||0) + (cs.escalated||0));
   }
 });
 
@@ -566,9 +577,9 @@ async function fullRefresh(){
     const alertsBadge = document.getElementById('nav-badge-alerts');
     const casesBadge = document.getElementById('nav-badge-cases');
     const notif = document.getElementById('notif-count');
-    if (alertsBadge) alertsBadge.textContent = (kpis.total_alerts_24h || 0).toLocaleString();
+    if (alertsBadge) alertsBadge.textContent = formatBadgeCount(kpis.total_alerts_24h || 0);
     if (casesBadge) casesBadge.textContent =
-      ((cStats.new||0) + (cStats.in_progress||0) + (cStats.escalated||0)).toLocaleString();
+      formatBadgeCount((cStats.new||0) + (cStats.in_progress||0) + (cStats.escalated||0));
     if (notif) {
       notif.textContent = kpis.critical_alerts || 0;
       notif.style.display = (kpis.critical_alerts || 0) > 0 ? 'block' : 'none';
@@ -1424,7 +1435,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const badge = document.getElementById('nav-badge-alerts');
     if(badge && e.detail.kpis){
-      badge.textContent = e.detail.kpis.total_alerts_24h?.toLocaleString()||0;
+      badge.textContent = formatBadgeCount(e.detail.kpis.total_alerts_24h || 0);
     }
     const notif = document.getElementById('notif-count');
     if(notif && e.detail.kpis){

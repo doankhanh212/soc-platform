@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     index_ai_anomaly:   str = "ai-anomaly-alerts"
 
     # ── AI Engine ────────────────────────────────────────────────
-    ai_risk_threshold: float = 0.75
+    ai_risk_threshold: float = 0.70
     # AI Engine runs on VPS1 (same host as OpenSearch)
     # Set true only after testing — auto-blocks via iptables
     ai_block_auto: bool = False

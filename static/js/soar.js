@@ -1302,8 +1302,10 @@ window.soarApp = (function() {
 
     openLogPanel() {
       if (this.logPanel) {
-        this.logPanel.classList.remove('hidden');
         this.logPanel.classList.add('visible');
+      }
+      if (this.canvas) {
+        this.canvas.classList.add('log-open');
       }
       if (this.logBody) {
         this.logBody.innerHTML = '';
@@ -1319,8 +1321,10 @@ window.soarApp = (function() {
 
     closeLogPanel() {
       if (this.logPanel) {
-        this.logPanel.classList.add('hidden');
         this.logPanel.classList.remove('visible');
+      }
+      if (this.canvas) {
+        this.canvas.classList.remove('log-open');
       }
     }
 

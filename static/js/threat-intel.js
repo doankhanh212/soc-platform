@@ -56,38 +56,54 @@
       });
     }
 
-    document.querySelectorAll('[data-ti-tab]').forEach((tabBtn) => {
-      tabBtn.addEventListener('click', () => {
-        switchTab(tabBtn.getAttribute('data-ti-tab') || 'lookup');
+    const tabs = document.querySelectorAll('.ti-tab-btn');
+    const panels = document.querySelectorAll('.ti-tab-panel');
+    tabs.forEach((btnTab, i) => {
+      btnTab.addEventListener('click', () => {
+        tabs.forEach((t) => t.classList.remove('active'));
+        panels.forEach((p) => { p.style.display = 'none'; });
+        btnTab.classList.add('active');
+        if (panels[i]) {
+          panels[i].style.display = 'block';
+        }
+        if (i === 0) renderSearchPanel();
+        if (i === 1) loadIOCList();
+        if (i === 2) loadFeedSources();
       });
     });
+
+    if (tabs[0]) {
+      tabs[0].click();
+    }
   }
 
-  function switchTab(tab) {
-    state.activeTab = tab;
-    document.querySelectorAll('[data-ti-tab]').forEach((btn) => {
-      btn.classList.toggle('active', btn.getAttribute('data-ti-tab') === tab);
-    });
-    document.querySelectorAll('.ti-tab-panel').forEach((panel) => {
-      panel.style.display = panel.id === `ti-tab-panel-${tab}` ? 'block' : 'none';
-    });
-
-    if (tab === 'ioc') {
-      renderIOCList();
-    } else if (tab === 'feed') {
-      renderFeedSources();
+  function renderSearchPanel() {
+    const panel = byId('ti-search-panel');
+    if (!panel) return;
+    const resultArea = byId('ti-result-area');
+    if (!resultArea || !String(resultArea.innerHTML || '').trim()) {
+      panel.innerHTML = `
+        <div id="ti-loading" class="ti-loading" style="display:none">
+          <span class="ti-spinner"></span>
+          <span>Đang truy vấn threat intelligence...</span>
+        </div>
+        <div id="ti-error" class="ti-error" style="display:none"></div>
+        <div id="ti-result-area">
+          <p style="color:#666;font-size:13px">Nhập IP, domain hoặc hash để tra cứu danh tiếng...</p>
+        </div>
+      `;
     }
   }
 
   function showLookupLoading(isLoading) {
-    const loadingEl = byId('ti-lookup-loading');
+    const loadingEl = byId('ti-loading');
     if (loadingEl) {
       loadingEl.style.display = isLoading ? 'flex' : 'none';
     }
   }
 
   function showLookupError(msg) {
-    const errorEl = byId('ti-lookup-error');
+    const errorEl = byId('ti-error');
     if (!errorEl) return;
     errorEl.style.display = msg ? 'block' : 'none';
     errorEl.textContent = msg || '';
@@ -104,7 +120,8 @@
   }
 
   async function lookupIP(query) {
-    const wrap = byId('ti-lookup-result');
+    renderSearchPanel();
+    const wrap = byId('ti-result-area');
     showLookupError('');
     showLookupLoading(true);
     if (wrap) wrap.innerHTML = '';
@@ -120,7 +137,25 @@
       }
       bindResultActions(data);
     } catch (_error) {
-      showLookupError(`Không tìm thấy thông tin cho: ${query}`);
+      const mockData = {
+        ip: query,
+        abuse_score: 75,
+        country: 'Unknown',
+        country_code: 'XX',
+        isp: 'Unknown ISP',
+        usage_type: 'Unknown',
+        is_tor: false,
+        is_vpn: false,
+        categories: ['SSH Brute Force'],
+        total_reports: 100,
+        so_canh_bao_wazuh: 0,
+        mo_hinh_ai: [],
+      };
+      if (wrap) {
+        wrap.innerHTML = renderIPResult(mockData);
+      }
+      showLookupError(`Không lấy được dữ liệu thật, đang hiển thị dữ liệu mô phỏng cho: ${query}`);
+      bindResultActions(mockData);
     } finally {
       showLookupLoading(false);
     }
@@ -269,7 +304,12 @@
     }
   }
 
-  async function renderIOCList() {
+  async function loadIOCList() {
+    const panel = byId('ti-ioc-panel');
+    if (!panel) return;
+    if (!byId('ti-ioc-view')) {
+      panel.innerHTML = '<div id="ti-ioc-view"></div>';
+    }
     const wrap = byId('ti-ioc-view');
     if (!wrap) return;
 
@@ -514,7 +554,12 @@
     });
   }
 
-  async function renderFeedSources() {
+  async function loadFeedSources() {
+    const panel = byId('ti-feed-panel');
+    if (!panel) return;
+    if (!byId('ti-feed-view')) {
+      panel.innerHTML = '<div id="ti-feed-view"></div>';
+    }
     const wrap = byId('ti-feed-view');
     if (!wrap) return;
 
@@ -563,15 +608,17 @@
 
   function initThreatIntelPage() {
     if (!byId('page-threat-intel')) return;
+    renderSearchPanel();
     setupEvents();
-    switchTab('lookup');
   }
 
   document.addEventListener('DOMContentLoaded', initThreatIntelPage);
 
   window.lookupIP = lookupIP;
   window.renderIPResult = renderIPResult;
-  window.renderIOCList = renderIOCList;
-  window.renderFeedSources = renderFeedSources;
+  window.renderSearchPanel = renderSearchPanel;
+  window.loadIOCList = loadIOCList;
+  window.loadFeedSources = loadFeedSources;
+  window.renderIOCList = loadIOCList;
+  window.renderFeedSources = loadFeedSources;
 })();
-

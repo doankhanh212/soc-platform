@@ -225,7 +225,7 @@ WEIGHTS = {
 
 
 class RiskScorer:
-    def __init__(self, block_threshold: float = 0.75):
+    def __init__(self, block_threshold: float = 0.70):
         self.threshold  = block_threshold
         self.ewma       = EWMADetector()
         self.cusum      = CUSUMDetector()
@@ -282,7 +282,7 @@ class RiskScorer:
 # Singleton instance reused across requests
 _risk_scorer: Optional[RiskScorer] = None
 
-def get_risk_scorer(threshold: float = 0.75) -> RiskScorer:
+def get_risk_scorer(threshold: float = 0.70) -> RiskScorer:
     global _risk_scorer
     if _risk_scorer is None:
         _risk_scorer = RiskScorer(block_threshold=threshold)

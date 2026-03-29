@@ -251,7 +251,10 @@ async def index_ai_anomaly_alert(result: dict) -> None:
         "model_scores": result.get("model_scores", {}),
         "risk_components": result.get("risk_components", {}),
         "features": result.get("features", {}),
+        "alerts_1h": result.get("alerts_1h", 0),
         "should_block": result.get("should_block", False),
+        "da_chan": result.get("da_chan", False),
+        "auto_block_reason": result.get("auto_block_reason", ""),
         "explanation": result.get("explanation", {}),
     }
     try:
