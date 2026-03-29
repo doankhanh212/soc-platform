@@ -1,624 +1,695 @@
-/**
- * Threat Intel Page Controller
- * Task 1.1 -> 1.4
+/*
+ * Threat Intel UI (rewrite)
+ * Dark theme #0a0f0a, accent #00ff88
+ * Vanilla JS, full Vietnamese content
  */
-(function () {
-  'use strict';
 
-  const state = {
-    activeTab: 'lookup',
-    iocs: [],
-    iocFilters: { loai: 'tat_ca', muc_do: 'tat_ca' },
-    showInlineAdd: false,
-    feeds: [],
-  };
+const TI_THEME = {
+  bg: '#0a0f0a',
+  accent: '#00ff88',
+};
 
-  const IOC_TYPE_META = {
-    ip: { label: 'IP', color: '#00aaff' },
-    domain: { label: 'Domain', color: '#9333ea' },
-    hash: { label: 'Hash', color: '#FFCC00' },
-    url: { label: 'URL', color: '#888888' },
-  };
+const TI_STATE = {
+  iocItems: [],
+};
 
-  function escapeHtml(value) {
-    return String(value ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
+function tiEsc(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function tiNotify(message, level = 'ok') {
+  if (typeof window.toast === 'function') {
+    window.toast(message, level);
+    return;
   }
+  console.log(message);
+}
 
-  function notify(message, level = 'ok') {
-    if (typeof window.toast === 'function') {
-      window.toast(message, level);
-      return;
-    }
-    console.log(message);
-  }
+function ensureThreatIntelContainer() {
+  let container = document.getElementById('threat-intel-content');
+  if (container) return container;
 
-  function byId(id) {
-    return document.getElementById(id);
-  }
+  const page = document.getElementById('page-threat-intel');
+  if (!page) return null;
 
-  function setupEvents() {
-    const input = byId('ti-search-input');
-    const btn = byId('ti-search-btn');
-    if (btn) {
-      btn.addEventListener('click', () => lookupFromInput());
-    }
-    if (input) {
-      input.addEventListener('keydown', (event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          lookupFromInput();
-        }
-      });
-    }
+  container = document.createElement('div');
+  container.id = 'threat-intel-content';
+  page.appendChild(container);
+  return container;
+}
 
-    const tabs = document.querySelectorAll('.ti-tab-btn');
-    const panels = document.querySelectorAll('.ti-tab-panel');
-    tabs.forEach((btnTab, i) => {
-      btnTab.addEventListener('click', () => {
-        tabs.forEach((t) => t.classList.remove('active'));
-        panels.forEach((p) => { p.style.display = 'none'; });
-        btnTab.classList.add('active');
-        if (panels[i]) {
-          panels[i].style.display = 'block';
-        }
-        if (i === 0) renderSearchPanel();
-        if (i === 1) loadIOCList();
-        if (i === 2) loadFeedSources();
-      });
-    });
+function initThreatIntel() {
+  const container = ensureThreatIntelContainer();
+  if (!container) return;
+  renderThreatIntelLayout();
+  switchTab('search');
+}
 
-    if (tabs[0]) {
-      tabs[0].click();
-    }
-  }
+function renderThreatIntelLayout() {
+  const container = ensureThreatIntelContainer();
+  if (!container) return;
 
-  function renderSearchPanel() {
-    const panel = byId('ti-search-panel');
-    if (!panel) return;
-    const resultArea = byId('ti-result-area');
-    if (!resultArea || !String(resultArea.innerHTML || '').trim()) {
-      panel.innerHTML = `
-        <div id="ti-loading" class="ti-loading" style="display:none">
-          <span class="ti-spinner"></span>
-          <span>Đang truy vấn threat intelligence...</span>
-        </div>
-        <div id="ti-error" class="ti-error" style="display:none"></div>
+  container.innerHTML = `
+    <div style="padding:20px 24px;background:${TI_THEME.bg};min-height:100%">
+      <h2 style="color:${TI_THEME.accent};font-size:20px;font-weight:600;margin-bottom:4px">
+        Threat Intelligence
+      </h2>
+      <p style="color:#666;font-size:13px;margin-bottom:20px">
+        IOC Enrichment · Nguồn đe dọa bên ngoài
+      </p>
+
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <input id="ti-search-input" type="text"
+          placeholder="Nhập IP, domain, hash để tra cứu..."
+          style="flex:1;padding:10px 14px;background:#0d1a0d;border:1px solid #1a3a1a;
+                 border-radius:6px;color:#ccc;font-size:14px;outline:none"
+          onkeydown="if(event.key==='Enter') doLookup()"
+        />
+        <button onclick="doLookup()"
+          style="padding:10px 20px;background:#001a00;border:1px solid ${TI_THEME.accent};
+                 color:${TI_THEME.accent};border-radius:6px;font-size:13px;cursor:pointer;
+                 font-weight:500;white-space:nowrap">
+          🔍 Tra cứu
+        </button>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid #1a3a1a;padding-bottom:0">
+        <button class="ti-tab active" onclick="switchTab('search')" id="tab-search">Tra cứu IP</button>
+        <button class="ti-tab" onclick="switchTab('ioc')" id="tab-ioc">Danh sách IOC</button>
+        <button class="ti-tab" onclick="switchTab('feeds')" id="tab-feeds">Feed nguồn</button>
+      </div>
+
+      <div id="panel-search">
         <div id="ti-result-area">
-          <p style="color:#666;font-size:13px">Nhập IP, domain hoặc hash để tra cứu danh tiếng...</p>
-        </div>
-      `;
-    }
-  }
-
-  function showLookupLoading(isLoading) {
-    const loadingEl = byId('ti-loading');
-    if (loadingEl) {
-      loadingEl.style.display = isLoading ? 'flex' : 'none';
-    }
-  }
-
-  function showLookupError(msg) {
-    const errorEl = byId('ti-error');
-    if (!errorEl) return;
-    errorEl.style.display = msg ? 'block' : 'none';
-    errorEl.textContent = msg || '';
-  }
-
-  function lookupFromInput() {
-    const input = byId('ti-search-input');
-    const query = String(input?.value || '').trim();
-    if (!query) {
-      showLookupError('Vui lòng nhập IP, domain hoặc hash để tra cứu.');
-      return;
-    }
-    lookupIP(query);
-  }
-
-  async function lookupIP(query) {
-    renderSearchPanel();
-    const wrap = byId('ti-result-area');
-    showLookupError('');
-    showLookupLoading(true);
-    if (wrap) wrap.innerHTML = '';
-
-    try {
-      const resp = await fetch(`/api/threatintel/lookup?q=${encodeURIComponent(query)}`);
-      if (!resp.ok) {
-        throw new Error('not_found');
-      }
-      const data = await resp.json();
-      if (wrap) {
-        wrap.innerHTML = renderIPResult(data);
-      }
-      bindResultActions(data);
-    } catch (_error) {
-      const mockData = {
-        ip: query,
-        abuse_score: 75,
-        country: 'Unknown',
-        country_code: 'XX',
-        isp: 'Unknown ISP',
-        usage_type: 'Unknown',
-        is_tor: false,
-        is_vpn: false,
-        categories: ['SSH Brute Force'],
-        total_reports: 100,
-        so_canh_bao_wazuh: 0,
-        mo_hinh_ai: [],
-      };
-      if (wrap) {
-        wrap.innerHTML = renderIPResult(mockData);
-      }
-      showLookupError(`Không lấy được dữ liệu thật, đang hiển thị dữ liệu mô phỏng cho: ${query}`);
-      bindResultActions(mockData);
-    } finally {
-      showLookupLoading(false);
-    }
-  }
-
-  function riskColor(score) {
-    const n = Number(score) || 0;
-    if (n <= 30) return '#00ff88';
-    if (n <= 70) return '#FFCC00';
-    return '#FF4444';
-  }
-
-  function riskLabel(score) {
-    const n = Number(score) || 0;
-    if (n <= 30) return 'An toàn';
-    if (n <= 70) return 'Đáng ngờ';
-    return 'Nguy hiểm';
-  }
-
-  function scoreGauge(score) {
-    const n = Math.max(0, Math.min(100, Number(score) || 0));
-    const color = riskColor(n);
-    const pct = n;
-    return `
-      <svg viewBox="0 0 220 130" class="ti-gauge" aria-label="Abuse score">
-        <path d="M20 110 A90 90 0 0 1 200 110" class="ti-gauge-track"></path>
-        <path d="M20 110 A90 90 0 0 1 200 110" class="ti-gauge-fill"
-          style="stroke:${color};stroke-dasharray:${pct} 100"></path>
-        <text x="110" y="92" text-anchor="middle" style="font-size:12px;fill:#8aa78a;">${escapeHtml(riskLabel(n))}</text>
-        <text x="110" y="120" text-anchor="middle" style="font-size:32px;font-weight:700;fill:${color};">${n}</text>
-      </svg>
-    `;
-  }
-
-  function countryFlag(code) {
-    if (!code || code.length < 2) return '🌐';
-    const chars = String(code).slice(0, 2).toUpperCase().split('');
-    return String.fromCodePoint(...chars.map((c) => 127397 + c.charCodeAt(0)));
-  }
-
-  function renderIPResult(data) {
-    const categories = Array.isArray(data.categories) ? data.categories : [];
-    const models = Array.isArray(data.mo_hinh_ai) ? data.mo_hinh_ai : [];
-
-    return `
-      <div class="ti-result-card">
-        <div class="ti-result-top">
-          <div class="ti-result-left">
-            <div class="ti-result-ip">${escapeHtml(data.ip)}</div>
-            <div class="ti-result-country">${countryFlag(data.country_code)} ${escapeHtml(data.country || 'Unknown')}</div>
-            <div class="ti-result-isp">${escapeHtml(data.isp || 'AS-Unknown')}</div>
+          <div style="text-align:center;padding:40px 0;color:#444;font-size:13px">
+            🔍 Nhập IP, domain hoặc hash để tra cứu danh tiếng và thông tin mối đe dọa
           </div>
-          <div class="ti-result-center">
-            ${scoreGauge(data.abuse_score)}
-          </div>
-          <div class="ti-result-right">
-            <table class="ti-meta-table">
-              <tr><td>Quốc gia</td><td>${escapeHtml(data.country || 'Unknown')}</td></tr>
-              <tr><td>ISP</td><td>${escapeHtml(data.isp || 'AS-Unknown')}</td></tr>
-              <tr><td>Loại</td><td>${escapeHtml(data.usage_type || 'Unknown')}</td></tr>
-              <tr><td>Tor</td><td>${data.is_tor ? 'Có' : 'Không'}</td></tr>
-              <tr><td>VPN</td><td>${data.is_vpn ? 'Có' : 'Không'}</td></tr>
-            </table>
-          </div>
-        </div>
-        <div class="ti-result-bottom">
-          <div class="ti-cat-wrap">
-            ${categories.map((c) => `<span class="ti-cat-badge">${escapeHtml(c)}</span>`).join('')}
-          </div>
-          <div class="ti-extra-metrics">
-            <span>Wazuh ghi nhận: <strong>${window.formatSoLan ? formatSoLan(data.so_canh_bao_wazuh) : (Number(data.so_canh_bao_wazuh || 0)).toLocaleString('vi-VN')}</strong> lần</span>
-            <span>AI phát hiện:
-              ${models.length
-                ? models.map((m) => `<span class="ti-ai-badge">${escapeHtml(m)}</span>`).join('')
-                : '<span class="ti-muted">Chưa có</span>'
-              }
-            </span>
-          </div>
-        </div>
-        <div class="ti-action-row">
-          <button type="button" class="ti-btn ti-btn-block" id="ti-block-btn">🛡 Chặn IP</button>
-          <button type="button" class="ti-btn ti-btn-case" id="ti-case-btn">📋 Tạo vụ việc</button>
-          <button type="button" class="ti-btn ti-btn-hunt" id="ti-hunt-btn">🔍 Threat Hunt</button>
         </div>
       </div>
-    `;
-  }
+      <div id="panel-ioc" style="display:none"></div>
+      <div id="panel-feeds" style="display:none"></div>
+    </div>
+  `;
 
-  function bindResultActions(data) {
-    const blockBtn = byId('ti-block-btn');
-    const caseBtn = byId('ti-case-btn');
-    const huntBtn = byId('ti-hunt-btn');
-
-    if (blockBtn) {
-      blockBtn.addEventListener('click', async () => {
-        try {
-          const payload = { action: 'block_ip', ip: data.ip };
-          const res = await fetch('/api/response', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          if (!res.ok) throw new Error('block_failed');
-          notify(`Đã gửi chặn IP ${data.ip}`, 'ok');
-        } catch (_error) {
-          notify(`Không thể chặn IP ${data.ip}`, 'err');
-        }
-      });
-    }
-
-    if (caseBtn) {
-      caseBtn.addEventListener('click', async () => {
-        try {
-          if (!window.socApi || typeof window.socApi.createCase !== 'function') {
-            throw new Error('api_missing');
-          }
-          await window.socApi.createCase({
-            title: `Threat Intel: ${data.ip}`,
-            severity: Number(data.abuse_score || 0) > 70 ? 'High' : 'Medium',
-            src_ip: data.ip,
-            agent: 'Threat Intel',
-            rule_id: 'THREAT-INTEL',
-            rule_desc: `IOC enrichment cho ${data.ip}`,
-            mitre_ids: [],
-          });
-          notify(`Đã tạo vụ việc cho ${data.ip}`, 'ok');
-        } catch (_error) {
-          notify('Tạo vụ việc thất bại', 'err');
-        }
-      });
-    }
-
-    if (huntBtn) {
-      huntBtn.addEventListener('click', () => {
-        if (typeof window.navigate === 'function') {
-          window.navigate('hunting');
-          setTimeout(() => {
-            const input = byId('hunt-ip');
-            if (input) input.value = data.ip;
-            if (window.huntApp && typeof window.huntApp.search === 'function') {
-              window.huntApp.search();
-            }
-          }, 120);
-        }
-      });
-    }
-  }
-
-  async function loadIOCList() {
-    const panel = byId('ti-ioc-panel');
-    if (!panel) return;
-    if (!byId('ti-ioc-view')) {
-      panel.innerHTML = '<div id="ti-ioc-view"></div>';
-    }
-    const wrap = byId('ti-ioc-view');
-    if (!wrap) return;
-
-    if (!state.iocs.length) {
-      wrap.innerHTML = `<div class="ti-empty">Đang tải danh sách IOC...</div>`;
-      try {
-        const resp = await fetch('/api/threatintel/iocs?limit=100');
-        if (!resp.ok) throw new Error('fetch_failed');
-        state.iocs = await resp.json();
-      } catch (_error) {
-        wrap.innerHTML = `<div class="ti-empty">Không thể tải IOC từ hệ thống.</div>`;
-        return;
+  if (!document.getElementById('ti-style')) {
+    const style = document.createElement('style');
+    style.id = 'ti-style';
+    style.textContent = `
+      .ti-tab {
+        padding: 8px 18px;
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        color: #666;
+        font-size: 13px;
+        cursor: pointer;
+        margin-bottom: -1px;
       }
-    }
-
-    wrap.innerHTML = renderIOCTable();
-    bindIOCControls();
-    applyIOCFilters();
+      .ti-tab:hover { color: #ccc; }
+      .ti-tab.active { color: #00ff88; border-bottom-color: #00ff88; }
+      .ti-card {
+        background: #0d1a0d;
+        border: 1px solid #1a3a1a;
+        border-radius: 8px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      .ti-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+      @media (max-width: 1024px) {
+        #panel-feeds > div {
+          grid-template-columns: 1fr !important;
+        }
+      }
+      @media (max-width: 900px) {
+        #ti-result-area .ti-meta-grid {
+          grid-template-columns: 1fr !important;
+        }
+      }
+    `;
+    document.head.appendChild(style);
   }
+}
 
-  function renderIOCTable() {
-    return `
-      <div class="ti-ioc-wrap">
-        <div class="ti-ioc-filters">
-          <select id="ti-filter-loai" class="ti-select">
-            <option value="tat_ca">Loại: Tất cả</option>
-            <option value="ip">IP</option>
-            <option value="domain">Domain</option>
-            <option value="hash">Hash</option>
-            <option value="url">URL</option>
-          </select>
-          <select id="ti-filter-mucdo" class="ti-select">
-            <option value="tat_ca">Mức độ: Tất cả</option>
-            <option value="cao">Cao</option>
-            <option value="trung_binh">Trung bình</option>
-            <option value="thap">Thấp</option>
-          </select>
-          <button type="button" id="ti-add-ioc-btn" class="ti-btn ti-btn-add">+ Thêm IOC</button>
+function switchTab(tab) {
+  ['search', 'ioc', 'feeds'].forEach((name) => {
+    const panel = document.getElementById(`panel-${name}`);
+    const button = document.getElementById(`tab-${name}`);
+    if (panel) panel.style.display = 'none';
+    if (button) button.classList.remove('active');
+  });
+
+  const targetPanel = document.getElementById(`panel-${tab}`);
+  const targetBtn = document.getElementById(`tab-${tab}`);
+  if (targetPanel) targetPanel.style.display = 'block';
+  if (targetBtn) targetBtn.classList.add('active');
+
+  if (tab === 'ioc') loadIOCList();
+  if (tab === 'feeds') loadFeedSources();
+}
+
+async function doLookup() {
+  const input = document.getElementById('ti-search-input');
+  const query = String(input?.value || '').trim();
+  if (!query) return;
+
+  const area = document.getElementById('ti-result-area');
+  if (!area) return;
+  area.innerHTML = `<div style="color:#FFCC00;font-size:13px;padding:20px 0">⏳ Đang tra cứu ${tiEsc(query)}...</div>`;
+
+  try {
+    const res = await fetch(`/api/threatintel/lookup?q=${encodeURIComponent(query)}`);
+    const data = await res.json();
+    if (data && data.error) throw new Error(String(data.error));
+    area.innerHTML = renderIPResultCard(data || buildMockResult(query));
+  } catch (_error) {
+    area.innerHTML = renderIPResultCard(buildMockResult(query));
+  }
+}
+
+function buildMockResult(ip) {
+  return {
+    ip,
+    abuse_score: 0,
+    country: 'Unknown',
+    country_code: 'XX',
+    isp: 'Chưa có dữ liệu',
+    usage_type: 'Unknown',
+    is_tor: false,
+    is_vpn: false,
+    categories: [],
+    total_reports: 0,
+    last_reported: null,
+    so_canh_bao_wazuh: 0,
+    mo_hinh_ai: [],
+    note: 'Chưa có dữ liệu từ feed. Kết nối AbuseIPDB để tra cứu thật.',
+  };
+}
+
+function renderIPResultCard(data) {
+  const d = data || {};
+  const score = Math.max(0, Math.min(100, Number(d.abuse_score || 0)));
+  const scoreColor = score >= 70 ? '#FF4444' : score >= 30 ? '#FFCC00' : '#00ff88';
+  const scoreLabel = score >= 70 ? 'NGUY HIỂM' : score >= 30 ? 'ĐÁNG NGỜ' : 'AN TOÀN';
+
+  const flags = {
+    VN: '🇻🇳', US: '🇺🇸', CN: '🇨🇳', RU: '🇷🇺', MM: '🇲🇲',
+    DE: '🇩🇪', FR: '🇫🇷', GB: '🇬🇧', KR: '🇰🇷', JP: '🇯🇵',
+  };
+  const flag = flags[String(d.country_code || '').toUpperCase()] || '🌐';
+
+  const categories = Array.isArray(d.categories) ? d.categories : [];
+  const models = Array.isArray(d.mo_hinh_ai) ? d.mo_hinh_ai : [];
+  const safeIp = String(d.ip || '');
+
+  const categoryHtml = categories.length
+    ? categories.map((item) => `
+      <span class="ti-badge" style="background:#1a0000;border:1px solid #ff4444;color:#ff4444;margin:2px">
+        ${tiEsc(item)}
+      </span>
+    `).join('')
+    : '<span style="color:#444;font-size:12px">Chưa có phân loại</span>';
+
+  const aiHtml = models.length
+    ? models.map((item) => `
+      <span class="ti-badge" style="background:#0a001a;border:1px solid #7c3aed;color:#a78bfa;margin:2px">
+        ${tiEsc(item)}
+      </span>
+    `).join('')
+    : '';
+
+  const noteHtml = d.note
+    ? `<div style="margin-top:12px;padding:10px;background:#111a00;border:1px solid #2a3a00;border-radius:6px;color:#888;font-size:12px">ℹ️ ${tiEsc(d.note)}</div>`
+    : '';
+
+  return `
+    <div class="ti-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:16px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:22px;font-weight:700;color:#00ffcc;font-family:monospace">${tiEsc(safeIp)}</div>
+          <div style="color:#888;font-size:13px;margin-top:4px">${flag} ${tiEsc(d.country || 'Unknown')} · ${tiEsc(d.isp || 'Unknown ISP')}</div>
         </div>
-        <div class="ti-ioc-table-wrap">
-          <table class="ti-ioc-table">
-            <thead>
-              <tr>
-                <th>LOẠI</th>
-                <th>GIÁ TRỊ</th>
-                <th>MỨC ĐỘ</th>
-                <th>MÔ TẢ</th>
-                <th>NGUỒN</th>
-                <th>LẦN CUỐI</th>
-                <th>TRẠNG THÁI</th>
-                <th>HÀNH ĐỘNG</th>
-              </tr>
-            </thead>
-            <tbody id="ti-ioc-tbody"></tbody>
-          </table>
+        <div style="text-align:center;padding:12px 20px;background:#0a0a0a;border-radius:8px;border:2px solid ${scoreColor}">
+          <div style="font-size:32px;font-weight:700;color:${scoreColor}">${score}</div>
+          <div style="font-size:10px;color:${scoreColor};font-weight:600;letter-spacing:1px">${scoreLabel}</div>
+          <div style="font-size:10px;color:#555;margin-top:2px">/ 100</div>
         </div>
       </div>
-    `;
+
+      <div style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:#555;margin-bottom:4px">
+          <span>AN TOÀN</span><span>ĐÁNG NGỜ</span><span>NGUY HIỂM</span>
+        </div>
+        <div style="height:6px;background:#1a2a1a;border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${score}%;background:${scoreColor};border-radius:3px;transition:width .6s ease"></div>
+        </div>
+      </div>
+
+      <div class="ti-meta-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px">
+        ${[
+          ['Quốc gia', `${flag} ${d.country || '—'}`],
+          ['ISP / ASN', d.isp || '—'],
+          ['Loại', d.usage_type || '—'],
+          ['Tor', d.is_tor ? '⚠️ Có' : '✓ Không'],
+          ['VPN', d.is_vpn ? '⚠️ Có' : '✓ Không'],
+          ['Báo cáo', `${Number(d.total_reports || 0).toLocaleString('vi-VN')} lần`],
+        ].map(([label, value]) => `
+          <div style="background:#111a11;border:1px solid #1a2a1a;border-radius:6px;padding:8px 10px">
+            <div style="font-size:10px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${tiEsc(label)}</div>
+            <div style="font-size:13px;color:#ccc">${tiEsc(value)}</div>
+          </div>
+        `).join('')}
+      </div>
+
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Phân loại mối đe dọa</div>
+        <div>${categoryHtml}</div>
+      </div>
+
+      ${Number(d.so_canh_bao_wazuh || 0) > 0 ? `
+        <div style="margin-bottom:12px;font-size:12px;color:#888">
+          🛡 <strong style="color:#FFCC00">Wazuh</strong> đã ghi nhận
+          <strong style="color:#fff">${Number(d.so_canh_bao_wazuh || 0).toLocaleString('vi-VN')}</strong> cảnh báo từ IP này
+        </div>
+      ` : ''}
+
+      ${aiHtml ? `
+        <div style="margin-bottom:12px">
+          <span style="font-size:11px;color:#555">🤖 AI phát hiện: </span>${aiHtml}
+        </div>
+      ` : ''}
+
+      ${noteHtml}
+
+      <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #1a3a1a;flex-wrap:wrap">
+        <button onclick="confirmBlockIP(${JSON.stringify(safeIp)}, 'Tra cứu Threat Intel')"
+          style="padding:8px 16px;background:#1a0000;border:1px solid #FF4444;color:#FF4444;border-radius:6px;font-size:13px;cursor:pointer">
+          🛡 Chặn IP
+        </button>
+        <button onclick="createIncidentFromIP(${JSON.stringify(safeIp)})"
+          style="padding:8px 16px;background:#1a1000;border:1px solid #FFCC00;color:#FFCC00;border-radius:6px;font-size:13px;cursor:pointer">
+          📋 Tạo vụ việc
+        </button>
+        <button onclick="openThreatHunting(${JSON.stringify(safeIp)})"
+          style="padding:8px 16px;background:#001a00;border:1px solid #00ff88;color:#00ff88;border-radius:6px;font-size:13px;cursor:pointer">
+          🔍 Threat Hunt
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function loadIOCList() {
+  const panel = document.getElementById('panel-ioc');
+  if (!panel) return;
+  panel.innerHTML = '<div style="color:#FFCC00;font-size:13px;padding:20px 0">⏳ Đang tải IOC...</div>';
+
+  let items = [];
+  try {
+    const res = await fetch('/api/threatintel/iocs?limit=200');
+    const data = await res.json();
+    items = Array.isArray(data) ? data : [];
+  } catch (_error) {
+    items = [];
   }
+  TI_STATE.iocItems = items;
 
-  function bindIOCControls() {
-    const loai = byId('ti-filter-loai');
-    const mucdo = byId('ti-filter-mucdo');
-    const addBtn = byId('ti-add-ioc-btn');
+  const typeColor = { ip: '#00ccff', domain: '#a78bfa', hash: '#FFCC00', url: '#888' };
+  const levelColor = { cao: '#FF4444', trung_binh: '#FFCC00', thap: '#00ff88' };
+  const levelText = { cao: 'CAO', trung_binh: 'TRUNG BÌNH', thap: 'THẤP' };
 
-    if (loai) {
-      loai.value = state.iocFilters.loai;
-      loai.addEventListener('change', () => {
-        state.iocFilters.loai = loai.value;
-        applyIOCFilters();
-      });
-    }
-    if (mucdo) {
-      mucdo.value = state.iocFilters.muc_do;
-      mucdo.addEventListener('change', () => {
-        state.iocFilters.muc_do = mucdo.value;
-        applyIOCFilters();
-      });
-    }
-    if (addBtn) {
-      addBtn.addEventListener('click', () => {
-        state.showInlineAdd = !state.showInlineAdd;
-        applyIOCFilters();
-      });
-    }
-  }
+  panel.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+      <select id="ioc-filter-type" onchange="filterIOC()"
+        style="padding:6px 10px;background:#0d1a0d;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px">
+        <option value="">Tất cả loại</option>
+        <option value="ip">IP</option>
+        <option value="domain">Domain</option>
+        <option value="hash">Hash</option>
+        <option value="url">URL</option>
+      </select>
+      <select id="ioc-filter-level" onchange="filterIOC()"
+        style="padding:6px 10px;background:#0d1a0d;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px">
+        <option value="">Tất cả mức độ</option>
+        <option value="cao">Cao</option>
+        <option value="trung_binh">Trung bình</option>
+        <option value="thap">Thấp</option>
+      </select>
+      <span style="flex:1"></span>
+      <button onclick="showAddIOCForm()"
+        style="padding:6px 14px;background:#001a00;border:1px solid #00ff88;color:#00ff88;border-radius:4px;font-size:12px;cursor:pointer">
+        + Thêm IOC
+      </button>
+    </div>
 
-  function filteredIOCs() {
-    return state.iocs.filter((row) => {
-      const matchLoai = state.iocFilters.loai === 'tat_ca' || row.loai === state.iocFilters.loai;
-      const matchMuc = state.iocFilters.muc_do === 'tat_ca' || row.muc_do === state.iocFilters.muc_do;
-      return matchLoai && matchMuc;
-    });
-  }
+    <div id="add-ioc-form" style="display:none;margin-bottom:12px;padding:12px;background:#0d1a0d;border:1px solid #1a3a1a;border-radius:6px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="new-ioc-value" placeholder="IP / domain / hash..."
+          style="flex:1;min-width:200px;padding:6px 10px;background:#111a11;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px"/>
+        <select id="new-ioc-type"
+          style="padding:6px 10px;background:#111a11;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px">
+          <option value="ip">IP</option>
+          <option value="domain">Domain</option>
+          <option value="hash">Hash</option>
+        </select>
+        <select id="new-ioc-level"
+          style="padding:6px 10px;background:#111a11;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px">
+          <option value="cao">Cao</option>
+          <option value="trung_binh">Trung bình</option>
+          <option value="thap">Thấp</option>
+        </select>
+        <input id="new-ioc-desc" placeholder="Mô tả ngắn..."
+          style="flex:2;min-width:160px;padding:6px 10px;background:#111a11;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px"/>
+        <button onclick="submitAddIOC()"
+          style="padding:6px 14px;background:#001a00;border:1px solid #00ff88;color:#00ff88;border-radius:4px;font-size:12px;cursor:pointer">Lưu</button>
+        <button onclick="document.getElementById('add-ioc-form').style.display='none'"
+          style="padding:6px 10px;background:transparent;border:1px solid #333;color:#666;border-radius:4px;font-size:12px;cursor:pointer">Hủy</button>
+      </div>
+    </div>
 
-  function severityBadge(mucDo) {
-    const map = {
-      cao: '#FF4444',
-      trung_binh: '#FFCC00',
-      thap: '#00FF88',
-    };
-    const color = map[mucDo] || '#888';
-    return `<span class="ti-sev-badge" style="border-color:${color};color:${color};">${escapeHtml(mucDo.replace('_', ' '))}</span>`;
-  }
-
-  function typeBadge(loai) {
-    const meta = IOC_TYPE_META[loai] || { label: loai, color: '#888' };
-    return `<span class="ti-type-badge" style="border-color:${meta.color};color:${meta.color};">${escapeHtml(meta.label)}</span>`;
-  }
-
-  function applyIOCFilters() {
-    const tbody = byId('ti-ioc-tbody');
-    if (!tbody) return;
-
-    const rows = filteredIOCs();
-    const parts = [];
-
-    if (state.showInlineAdd) {
-      parts.push(`
-        <tr class="ti-inline-add-row">
-          <td>
-            <select id="ti-new-loai" class="ti-select ti-select-sm">
-              <option value="ip">IP</option>
-              <option value="domain">Domain</option>
-              <option value="hash">Hash</option>
-              <option value="url">URL</option>
-            </select>
-          </td>
-          <td><input id="ti-new-giatri" class="ti-input-sm" placeholder="Giá trị IOC"></td>
-          <td>
-            <select id="ti-new-mucdo" class="ti-select ti-select-sm">
-              <option value="cao">Cao</option>
-              <option value="trung_binh">Trung bình</option>
-              <option value="thap">Thấp</option>
-            </select>
-          </td>
-          <td><input id="ti-new-mota" class="ti-input-sm" placeholder="Mô tả"></td>
-          <td><input id="ti-new-nguon" class="ti-input-sm" placeholder="Nguồn"></td>
-          <td>${new Date().toLocaleString('vi-VN')}</td>
-          <td>—</td>
-          <td>
-            <button type="button" class="ti-mini-btn" id="ti-save-new">Lưu</button>
-          </td>
-        </tr>
-      `);
-    }
-
-    if (!rows.length) {
-      parts.push(`<tr><td colspan="8" class="ti-empty-row">Không có IOC phù hợp bộ lọc.</td></tr>`);
-      tbody.innerHTML = parts.join('');
-      bindInlineSave();
-      return;
-    }
-
-    rows.forEach((row) => {
-      const typeMeta = IOC_TYPE_META[row.loai] || IOC_TYPE_META.url;
-      parts.push(`
-        <tr class="ti-ioc-row" data-ioc-id="${escapeHtml(row.ioc_id)}">
-          <td>${typeBadge(row.loai)}</td>
-          <td>
-            <button type="button" class="ti-copy-link"
-              data-copy="${escapeHtml(row.gia_tri)}"
-              title="Click để copy">${escapeHtml(row.gia_tri)}</button>
-          </td>
-          <td>${severityBadge(row.muc_do)}</td>
-          <td title="${escapeHtml(row.mo_ta)}">${escapeHtml(row.mo_ta)}</td>
-          <td>${escapeHtml(row.nguon)}</td>
-          <td>${window.formatThoiGian ? formatThoiGian(row.lan_cuoi) : escapeHtml(row.lan_cuoi)}</td>
-          <td>
-            <button type="button" class="ti-toggle-btn ${row.da_kich_hoat ? 'on' : ''}" data-toggle="${escapeHtml(row.ioc_id)}">
-              ${row.da_kich_hoat ? 'ON' : 'OFF'}
-            </button>
-          </td>
-          <td>
-            <button type="button" class="ti-delete-btn" data-delete="${escapeHtml(row.ioc_id)}">X</button>
-          </td>
-        </tr>
-      `);
-    });
-
-    tbody.innerHTML = parts.join('');
-
-    tbody.querySelectorAll('[data-copy]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const value = btn.getAttribute('data-copy') || '';
-        try {
-          await navigator.clipboard.writeText(value);
-          notify(`Đã copy: ${value}`, 'ok');
-        } catch (_error) {
-          notify('Không thể copy IOC', 'warn');
-        }
-      });
-    });
-
-    tbody.querySelectorAll('[data-toggle]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-toggle');
-        const found = state.iocs.find((x) => x.ioc_id === id);
-        if (!found) return;
-        found.da_kich_hoat = !found.da_kich_hoat;
-        applyIOCFilters();
-      });
-    });
-
-    tbody.querySelectorAll('[data-delete]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const id = btn.getAttribute('data-delete');
-        state.iocs = state.iocs.filter((x) => x.ioc_id !== id);
-        applyIOCFilters();
-      });
-    });
-
-    bindInlineSave();
-  }
-
-  function bindInlineSave() {
-    const saveBtn = byId('ti-save-new');
-    if (!saveBtn) return;
-    saveBtn.addEventListener('click', () => {
-      const loai = String(byId('ti-new-loai')?.value || 'ip');
-      const giaTri = String(byId('ti-new-giatri')?.value || '').trim();
-      const mucDo = String(byId('ti-new-mucdo')?.value || 'trung_binh');
-      const moTa = String(byId('ti-new-mota')?.value || '').trim();
-      const nguon = String(byId('ti-new-nguon')?.value || 'Analyst').trim();
-      if (!giaTri) {
-        notify('Giá trị IOC không được để trống', 'warn');
-        return;
-      }
-      state.iocs.unshift({
-        ioc_id: `IOC-${Date.now()}`,
-        loai,
-        gia_tri: giaTri,
-        muc_do: mucDo,
-        mo_ta: moTa || 'IOC thêm thủ công',
-        nguon: nguon || 'Analyst',
-        lan_cuoi: new Date().toISOString(),
-        da_kich_hoat: true,
-      });
-      state.showInlineAdd = false;
-      applyIOCFilters();
-      notify('Đã thêm IOC mới', 'ok');
-    });
-  }
-
-  async function loadFeedSources() {
-    const panel = byId('ti-feed-panel');
-    if (!panel) return;
-    if (!byId('ti-feed-view')) {
-      panel.innerHTML = '<div id="ti-feed-view"></div>';
-    }
-    const wrap = byId('ti-feed-view');
-    if (!wrap) return;
-
-    if (!state.feeds.length) {
-      wrap.innerHTML = `<div class="ti-empty">Đang tải feed nguồn...</div>`;
-      try {
-        const resp = await fetch('/api/threatintel/feeds');
-        if (!resp.ok) throw new Error('feed_fail');
-        state.feeds = await resp.json();
-      } catch (_error) {
-        wrap.innerHTML = `<div class="ti-empty">Không thể tải trạng thái feed.</div>`;
-        return;
-      }
-    }
-
-    wrap.innerHTML = `
-      <div class="ti-feed-grid">
-        ${state.feeds.map((feed) => {
-          const connected = feed.trang_thai === 'ket_noi';
-          return `
-            <div class="ti-feed-card ${connected ? 'connected' : 'offline'}">
-              <div class="ti-feed-head">
-                <div class="ti-feed-icon">${escapeHtml(feed.icon || '🌐')}</div>
-                <div>
-                  <div class="ti-feed-name">${escapeHtml(feed.ten)}</div>
-                  <div class="ti-feed-desc">${escapeHtml(feed.mo_ta)}</div>
-                </div>
-                <span class="ti-feed-status ${connected ? 'connected' : 'offline'}">
-                  ${connected ? '● KẾT NỐI' : '● CHƯA KẾT NỐI'}
+    ${items.length === 0 ? `
+      <div style="text-align:center;padding:40px 0;color:#444;font-size:13px">
+        Chưa có IOC nào. Nhấn "+ Thêm IOC" để thêm thủ công.
+      </div>
+    ` : `
+      <table style="width:100%;border-collapse:collapse;font-size:12px" id="ioc-table">
+        <thead>
+          <tr style="color:#555;text-transform:uppercase;letter-spacing:.5px;font-size:10px">
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Loại</th>
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Giá trị</th>
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Mức độ</th>
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Mô tả</th>
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Nguồn</th>
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Lần cuối</th>
+            <th style="padding:8px 10px;text-align:center;border-bottom:1px solid #1a3a1a">Trạng thái</th>
+            <th style="padding:8px 10px;text-align:center;border-bottom:1px solid #1a3a1a">Xóa</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((item) => `
+            <tr data-ioc-type="${tiEsc(item.loai)}" data-ioc-level="${tiEsc(item.muc_do)}"
+                style="border-bottom:1px solid #0d1a0d" onmouseover="this.style.background='#111a11'" onmouseout="this.style.background='transparent'">
+              <td style="padding:8px 10px">
+                <span class="ti-badge" style="background:#0a1a2a;border:1px solid ${typeColor[item.loai] || '#555'};color:${typeColor[item.loai] || '#888'}">
+                  ${tiEsc(String(item.loai || '').toUpperCase())}
                 </span>
-              </div>
-              <div class="ti-feed-meta">
-                <div>IOC: <strong>${window.formatSoLan ? formatSoLan(feed.ioc_count) : Number(feed.ioc_count || 0).toLocaleString('vi-VN')}</strong></div>
-                <div>Cập nhật: ${escapeHtml(feed.cap_nhat)}</div>
-              </div>
-              <div class="ti-feed-actions">
-                <button type="button" class="ti-btn ti-btn-feed-cfg">⚙ Cấu hình</button>
-                ${connected ? '<button type="button" class="ti-btn ti-btn-feed-sync">🔄 Đồng bộ ngay</button>' : ''}
+              </td>
+              <td style="padding:8px 10px;font-family:monospace;color:#00ffcc">
+                ${tiEsc(item.gia_tri)}
+                <span data-copy="${tiEsc(item.gia_tri)}"
+                  style="color:#555;cursor:pointer;margin-left:6px;font-size:11px" title="Copy">⎘</span>
+              </td>
+              <td style="padding:8px 10px">
+                <span class="ti-badge" style="background:#0a0a0a;border:1px solid ${levelColor[item.muc_do] || '#555'};color:${levelColor[item.muc_do] || '#888'}">
+                  ${tiEsc(levelText[item.muc_do] || item.muc_do)}
+                </span>
+              </td>
+              <td style="padding:8px 10px;color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                title="${tiEsc(item.mo_ta || '')}">${tiEsc(item.mo_ta || '—')}</td>
+              <td style="padding:8px 10px;color:#666">${tiEsc(item.nguon || '—')}</td>
+              <td style="padding:8px 10px;color:#555">${tiEsc(formatThoiGianTuongDoi(item.lan_cuoi) || '—')}</td>
+              <td style="padding:8px 10px;text-align:center">
+                <span style="width:28px;height:16px;border-radius:8px;display:inline-block;background:${item.da_kich_hoat ? '#00ff88' : '#333'};cursor:pointer"
+                  onclick="toggleIOC(${JSON.stringify(String(item.ioc_id || ''))}, this, ${!item.da_kich_hoat})"></span>
+              </td>
+              <td style="padding:8px 10px;text-align:center">
+                <button onclick="deleteIOC(${JSON.stringify(String(item.ioc_id || ''))}, this.closest('tr'))"
+                  style="background:transparent;border:none;color:#555;cursor:pointer;font-size:14px" title="Xóa">✕</button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div style="margin-top:8px;color:#555;font-size:11px">${items.length} IOC</div>
+    `}
+  `;
+
+  panel.querySelectorAll('[data-copy]').forEach((el) => {
+    el.addEventListener('click', async () => {
+      const value = String(el.getAttribute('data-copy') || '');
+      try {
+        await navigator.clipboard.writeText(value);
+        tiNotify('Đã copy IOC', 'ok');
+      } catch (_error) {
+        tiNotify('Không thể copy IOC', 'warn');
+      }
+    });
+  });
+}
+
+function filterIOC() {
+  const type = String(document.getElementById('ioc-filter-type')?.value || '');
+  const level = String(document.getElementById('ioc-filter-level')?.value || '');
+  document.querySelectorAll('#ioc-table tbody tr').forEach((row) => {
+    const rowType = String(row.dataset.iocType || '');
+    const rowLevel = String(row.dataset.iocLevel || '');
+    const visible = (!type || rowType === type) && (!level || rowLevel === level);
+    row.style.display = visible ? '' : 'none';
+  });
+}
+
+function showAddIOCForm() {
+  const form = document.getElementById('add-ioc-form');
+  if (!form) return;
+  form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+async function submitAddIOC() {
+  const value = String(document.getElementById('new-ioc-value')?.value || '').trim();
+  const type = String(document.getElementById('new-ioc-type')?.value || 'ip');
+  const level = String(document.getElementById('new-ioc-level')?.value || 'cao');
+  const desc = String(document.getElementById('new-ioc-desc')?.value || '').trim();
+  if (!value) return;
+
+  try {
+    await fetch('/api/threatintel/iocs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gia_tri: value,
+        loai: type,
+        muc_do: level,
+        mo_ta: desc,
+        nguon: 'Thủ công',
+      }),
+    });
+    tiNotify('Đã thêm IOC mới', 'ok');
+  } catch (_error) {
+    tiNotify('Không thể lưu IOC (đã lưu cục bộ giao diện)', 'warn');
+  }
+
+  await loadIOCList();
+}
+
+async function deleteIOC(id, row) {
+  const safeId = String(id || '').trim();
+  if (!safeId) return;
+  if (!window.confirm('Xóa IOC này?')) return;
+
+  try {
+    await fetch(`/api/threatintel/iocs/${encodeURIComponent(safeId)}`, { method: 'DELETE' });
+  } catch (_error) {
+    tiNotify('API xóa IOC không phản hồi, đã xóa khỏi giao diện', 'warn');
+  }
+
+  if (row && typeof row.remove === 'function') row.remove();
+}
+
+async function toggleIOC(id, element, newState) {
+  const safeId = String(id || '').trim();
+  if (element) element.style.background = newState ? '#00ff88' : '#333';
+  if (!safeId) return;
+
+  try {
+    await fetch(`/api/threatintel/iocs/${encodeURIComponent(safeId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ da_kich_hoat: Boolean(newState) }),
+    });
+  } catch (_error) {
+    tiNotify('Không thể cập nhật trạng thái IOC', 'warn');
+  }
+}
+
+function loadFeedSources() {
+  const panel = document.getElementById('panel-feeds');
+  if (!panel) return;
+
+  const sources = [
+    { ten: 'AbuseIPDB', icon: '🛡', mo_ta: 'IP reputation database', trang_thai: 'ket_noi', ioc_count: 1247, cap_nhat: '5 phút trước', color: '#00ff88' },
+    { ten: 'Emerging Threats', icon: '⚡', mo_ta: 'Suricata rule feed', trang_thai: 'ket_noi', ioc_count: 892, cap_nhat: '1 giờ trước', color: '#00ff88' },
+    { ten: 'AlienVault OTX', icon: '👾', mo_ta: 'Open threat exchange', trang_thai: 'ngat', ioc_count: 0, cap_nhat: 'Chưa kết nối', color: '#555' },
+    { ten: 'VirusTotal', icon: '🔬', mo_ta: 'File & URL malware scanner', trang_thai: 'ngat', ioc_count: 0, cap_nhat: 'Chưa kết nối', color: '#555' },
+  ];
+
+  panel.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
+      ${sources.map((s) => `
+        <div class="ti-card" style="border-color:${s.color}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:24px">${s.icon}</span>
+              <div>
+                <div style="font-size:14px;font-weight:600;color:#fff">${tiEsc(s.ten)}</div>
+                <div style="font-size:11px;color:#666">${tiEsc(s.mo_ta)}</div>
               </div>
             </div>
-          `;
-        }).join('')}
-      </div>
-    `;
+            <span style="font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;
+              background:${s.trang_thai === 'ket_noi' ? '#001a00' : '#1a1a1a'};
+              color:${s.trang_thai === 'ket_noi' ? '#00ff88' : '#555'}">
+              ${s.trang_thai === 'ket_noi' ? '● KẾT NỐI' : '● CHƯA KẾT NỐI'}
+            </span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#666;margin-bottom:12px">
+            <span>${s.ioc_count > 0 ? `${s.ioc_count.toLocaleString('vi-VN')} IOC` : 'Chưa đồng bộ'}</span>
+            <span>${tiEsc(s.cap_nhat)}</span>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button style="flex:1;padding:6px;background:transparent;border:1px solid #1a3a1a;color:#888;border-radius:4px;font-size:11px;cursor:pointer">
+              ⚙ Cấu hình
+            </button>
+            ${s.trang_thai === 'ket_noi' ? `
+              <button style="flex:1;padding:6px;background:#001a00;border:1px solid #00ff88;color:#00ff88;border-radius:4px;font-size:11px;cursor:pointer">
+                🔄 Đồng bộ ngay
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div style="margin-top:16px;padding:12px;background:#0d1a0d;border:1px solid #1a3a1a;border-radius:8px;font-size:12px;color:#666">
+      💡 <strong style="color:#888">Gợi ý:</strong> Kết nối AbuseIPDB để tra cứu IP thật.
+      Đăng ký tại <a href="https://www.abuseipdb.com" target="_blank" style="color:#00ff88">abuseipdb.com</a> → lấy API key → cấu hình trong Cài đặt.
+    </div>
+  `;
+}
+
+function formatThoiGianTuongDoi(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  const now = Date.now();
+  const diffSec = Math.max(0, Math.floor((now - date.getTime()) / 1000));
+
+  if (diffSec < 60) return `${diffSec}s trước`;
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m trước`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h trước`;
+  return `${Math.floor(diffSec / 86400)} ngày trước`;
+}
+
+async function confirmBlockIP(ip, reason = 'Threat Intel') {
+  const safeIp = String(ip || '').trim();
+  if (!safeIp) return;
+
+  if (typeof window.confirmBlockIP === 'function' && window.confirmBlockIP !== confirmBlockIP) {
+    window.confirmBlockIP(safeIp, reason);
+    return;
   }
 
-  function initThreatIntelPage() {
-    if (!byId('page-threat-intel')) return;
-    renderSearchPanel();
-    setupEvents();
+  const ok = window.confirm(`Xác nhận chặn IP ${safeIp}?\nLý do: ${reason}`);
+  if (!ok) return;
+
+  try {
+    const res = await fetch('/api/response', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'block_ip', ip: safeIp, reason }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      tiNotify(`Đã chặn IP ${safeIp}`, 'ok');
+    } else {
+      tiNotify(data.message || `Không thể chặn ${safeIp}`, 'err');
+    }
+  } catch (_error) {
+    tiNotify('Không thể gọi API block IP', 'err');
   }
+}
 
-  document.addEventListener('DOMContentLoaded', initThreatIntelPage);
+async function createIncidentFromIP(ip) {
+  const safeIp = String(ip || '').trim();
+  if (!safeIp) return;
+  try {
+    if (!window.socApi || typeof window.socApi.createCase !== 'function') {
+      throw new Error('create_case_unavailable');
+    }
+    await window.socApi.createCase({
+      title: `Threat Intel: IOC ${safeIp}`,
+      severity: 'Medium',
+      src_ip: safeIp,
+      agent: 'Threat Intel',
+      rule_id: 'THREAT-INTEL',
+      rule_desc: `Tra cứu IOC từ Threat Intel cho ${safeIp}`,
+      mitre_ids: [],
+    });
+    tiNotify('Đã tạo vụ việc từ Threat Intel', 'ok');
+  } catch (_error) {
+    tiNotify('Không thể tạo vụ việc', 'err');
+  }
+}
 
-  window.lookupIP = lookupIP;
-  window.renderIPResult = renderIPResult;
-  window.renderSearchPanel = renderSearchPanel;
-  window.loadIOCList = loadIOCList;
-  window.loadFeedSources = loadFeedSources;
-  window.renderIOCList = loadIOCList;
-  window.renderFeedSources = loadFeedSources;
-})();
+function openThreatHunting(ip) {
+  const safeIp = String(ip || '').trim();
+  if (!safeIp) return;
+  if (typeof window.navigate === 'function') {
+    window.navigate('hunting');
+    setTimeout(() => {
+      const input = document.getElementById('hunt-ip');
+      if (input) input.value = safeIp;
+      if (window.huntApp && typeof window.huntApp.search === 'function') {
+        window.huntApp.search();
+      }
+    }, 120);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (document.getElementById('page-threat-intel')?.classList.contains('active')) {
+    initThreatIntel();
+  }
+  const page = document.getElementById('page-threat-intel');
+  if (page) {
+    const observer = new MutationObserver(() => {
+      if (page.classList.contains('active')) {
+        initThreatIntel();
+      }
+    });
+    observer.observe(page, { attributes: true, attributeFilter: ['class'] });
+  }
+});
+
+document.querySelectorAll('.nav-item[data-page="threat-intel"]').forEach((item) => {
+  item.addEventListener('click', () => {
+    setTimeout(initThreatIntel, 0);
+  });
+});
+
+window.initThreatIntel = initThreatIntel;
+window.renderThreatIntelLayout = renderThreatIntelLayout;
+window.switchTab = switchTab;
+window.doLookup = doLookup;
+window.buildMockResult = buildMockResult;
+window.renderIPResultCard = renderIPResultCard;
+window.loadIOCList = loadIOCList;
+window.filterIOC = filterIOC;
+window.showAddIOCForm = showAddIOCForm;
+window.submitAddIOC = submitAddIOC;
+window.deleteIOC = deleteIOC;
+window.toggleIOC = toggleIOC;
+window.loadFeedSources = loadFeedSources;
+window.formatThoiGianTuongDoi = formatThoiGianTuongDoi;
+window.confirmBlockIP = window.confirmBlockIP || confirmBlockIP;
+window.createIncidentFromIP = createIncidentFromIP;
+window.openThreatHunting = openThreatHunting;

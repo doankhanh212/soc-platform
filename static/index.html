@@ -593,38 +593,7 @@
 </div>
 
 <div id="page-threat-intel" class="page">
-  <div class="ti-page-wrap">
-    <div class="ti-header">
-      <h2>Threat Intelligence</h2>
-      <p>IOC Enrichment · Nguồn đe dọa bên ngoài</p>
-    </div>
-
-    <div class="ti-search-row">
-      <input id="ti-search-input" type="text" placeholder="Nhập IP, domain, hash để tra cứu...">
-      <button id="ti-search-btn" type="button">🔍 Tra cứu</button>
-    </div>
-
-    <div class="ti-tabs">
-      <button type="button" class="ti-tab-btn active">Tra cứu IP</button>
-      <button type="button" class="ti-tab-btn">Danh sách IOC</button>
-      <button type="button" class="ti-tab-btn">Feed nguồn</button>
-    </div>
-
-    <div id="ti-search-panel" class="ti-tab-panel">
-      <div id="ti-loading" class="ti-loading" style="display:none">
-        <span class="ti-spinner"></span>
-        <span>Đang truy vấn threat intelligence...</span>
-      </div>
-      <div id="ti-error" class="ti-error" style="display:none"></div>
-      <div id="ti-result-area">
-        <p style="color:#666;font-size:13px">Nhập IP, domain hoặc hash để tra cứu danh tiếng...</p>
-      </div>
-    </div>
-
-    <div id="ti-ioc-panel" class="ti-tab-panel" style="display:none"></div>
-
-    <div id="ti-feed-panel" class="ti-tab-panel" style="display:none"></div>
-  </div>
+  <div id="threat-intel-content"></div>
 </div>
 
 <div id="page-hunting" class="page">
