@@ -1,7 +1,6 @@
 from datetime import datetime
 from pathlib import Path
 import ipaddress
-import subprocess
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
@@ -19,6 +18,7 @@ from services import (
     get_top_rules,
     get_suricata_signature_stats,
 )
+from response.firewall import block_ip as fw_block, unblock_ip as fw_unblock
 
 alerts_router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 stats_router = APIRouter(prefix="/api/stats", tags=["stats"])
@@ -92,61 +92,21 @@ def _is_valid_ipv4(ip: str) -> bool:
         return False
 
 
-def _append_block_log(ip: str, reason: str) -> None:
-    try:
-        with Path("/var/log/soc_blocks.log").open("a", encoding="utf-8") as f:
-            f.write(f"{datetime.now().isoformat()} BLOCKED {ip} reason={reason}\n")
-    except Exception:
-        # Không để lỗi ghi log chặn luồng phản ứng.
-        pass
-
-
 async def _block_ip_core(ip: str, reason: str = "Manual block"):
     if not _is_valid_ipv4(ip):
         return JSONResponse({"success": False, "message": "IP không hợp lệ"}, status_code=400)
 
-    try:
-        base_cmd = ["iptables", "-I", "INPUT", "-s", ip, "-j", "DROP"]
-        result = subprocess.run(
-            base_cmd,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        stderr_text = (result.stderr or "").strip()
-        if result.returncode != 0 and (
-            "Permission denied" in stderr_text
-            or "Operation not permitted" in stderr_text
-        ):
-            # Cho phép fallback dùng sudo khi service không chạy bằng root
-            # và đã được cấp NOPASSWD trong sudoers.
-            result = subprocess.run(
-                ["sudo", *base_cmd],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            stderr_text = (result.stderr or "").strip()
+    result = fw_block(ip, reason=reason)
 
-        if result.returncode != 0:
-            return JSONResponse(
-                {"success": False, "message": f"iptables lỗi: {stderr_text or 'unknown error'}"},
-                status_code=500,
-            )
-
-        _append_block_log(ip=ip, reason=reason)
+    if result["status"] in ("blocked", "already_blocked"):
         return {
             "success": True,
-            "status": "blocked",
+            "status": result["status"],
             "ip": ip,
-            "message": f"Đã chặn IP {ip} qua iptables",
+            "message": result.get("message", ""),
+            "suricata_vps": result.get("suricata_vps"),
         }
-    except subprocess.TimeoutExpired:
-        return JSONResponse({"success": False, "message": "Timeout khi chạy iptables"}, status_code=500)
-    except FileNotFoundError:
-        return JSONResponse({"success": False, "message": "iptables không tìm thấy trên server"}, status_code=500)
-    except Exception as e:
-        return JSONResponse({"success": False, "message": str(e)}, status_code=500)
+    return JSONResponse({"success": False, "message": result.get("message", "Lỗi block IP")}, status_code=500)
 
 
 # Response
@@ -176,39 +136,12 @@ async def block_ip(ip: str = Query(...), reason: str = Query("Manual block")):
 
 
 @response_router.post("/unblock-ip")
-async def unblock_ip(ip: str = Query(...)):
+async def unblock_ip_route(ip: str = Query(...)):
     if not _is_valid_ipv4(ip):
         return JSONResponse({"success": False, "message": "IP không hợp lệ"}, status_code=400)
-    try:
-        base_cmd = ["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"]
-        result = subprocess.run(
-            base_cmd,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        stderr_text = (result.stderr or "").strip()
-        if result.returncode != 0 and (
-            "Permission denied" in stderr_text
-            or "Operation not permitted" in stderr_text
-        ):
-            result = subprocess.run(
-                ["sudo", *base_cmd],
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            stderr_text = (result.stderr or "").strip()
 
-        if result.returncode != 0:
-            return JSONResponse(
-                {"success": False, "message": f"iptables lỗi: {stderr_text or 'unknown error'}"},
-                status_code=500,
-            )
-        return {"success": True, "status": "unblocked", "ip": ip, "message": f"Đã bỏ chặn {ip}"}
-    except subprocess.TimeoutExpired:
-        return JSONResponse({"success": False, "message": "Timeout khi chạy iptables"}, status_code=500)
-    except FileNotFoundError:
-        return JSONResponse({"success": False, "message": "iptables không tìm thấy trên server"}, status_code=500)
-    except Exception as e:
-        return JSONResponse({"success": False, "message": str(e)}, status_code=500)
+    result = fw_unblock(ip)
+    if result["status"] in ("unblocked", "already_unblocked"):
+        return {"success": True, "status": result["status"], "ip": ip,
+                "message": result.get("message", ""), "suricata_vps": result.get("suricata_vps")}
+    return JSONResponse({"success": False, "message": result.get("message", "Lỗi unblock")}, status_code=500)

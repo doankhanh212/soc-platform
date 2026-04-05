@@ -1,10 +1,19 @@
+import asyncio
 import re
 from collections import defaultdict
 from datetime import datetime, timezone
+from functools import lru_cache
+from typing import Any
 
+import httpx
 from fastapi import APIRouter, HTTPException, Query
 
+from config import get_settings
 from services import get_ai_anomaly_alerts, get_recent_alerts
+
+# Cache AbuseIPDB result 1 giờ để không bị rate-limit (1000 req/ngày free)
+_ABUSEIPDB_CACHE: dict[str, tuple[float, dict]] = {}
+_CACHE_TTL = 3600  # seconds
 
 
 router = APIRouter(prefix="/api/threatintel", tags=["threat-intel"])
@@ -47,13 +56,45 @@ def _dedupe_keep_order(values: list[str]) -> list[str]:
     return out
 
 
+async def _fetch_abuseipdb(ip: str) -> dict[str, Any] | None:
+    """Gọi AbuseIPDB v2 /check. Trả None nếu không có key hoặc lỗi."""
+    import time
+    s = get_settings()
+    if not s.abuseipdb_api_key:
+        return None
+
+    # Kiểm tra cache
+    cached = _ABUSEIPDB_CACHE.get(ip)
+    if cached and (time.time() - cached[0]) < _CACHE_TTL:
+        return cached[1]
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(
+                "https://api.abuseipdb.com/api/v2/check",
+                headers={"Key": s.abuseipdb_api_key, "Accept": "application/json"},
+                params={"ipAddress": ip, "maxAgeInDays": 90, "verbose": ""},
+            )
+        if resp.status_code != 200:
+            return None
+        data = resp.json().get("data", {})
+        _ABUSEIPDB_CACHE[ip] = (time.time(), data)
+        return data
+    except Exception:
+        return None
+
+
 @router.get("/lookup")
 async def lookup_ip(q: str = Query(..., min_length=1)):
     query = q.strip()
     if not IP_RE.match(query):
         raise HTTPException(status_code=404, detail=f"Không có dữ liệu threat intel cho: {query}")
 
-    wazuh_alerts, ai_alerts = await _load_threatintel_data()
+    # Chạy song song: lấy dữ liệu nội bộ + gọi AbuseIPDB
+    (wazuh_alerts, ai_alerts), abuse_data = await asyncio.gather(
+        _load_threatintel_data(),
+        _fetch_abuseipdb(query),
+    )
 
     matched_wazuh = [
         a for a in wazuh_alerts
@@ -61,7 +102,8 @@ async def lookup_ip(q: str = Query(..., min_length=1)):
     ]
     matched_ai = [a for a in ai_alerts if a.get("src_ip") == query]
 
-    if not matched_wazuh and not matched_ai:
+    # Nếu không có dữ liệu nội bộ VÀ không có AbuseIPDB → 404
+    if not matched_wazuh and not matched_ai and not abuse_data:
         raise HTTPException(status_code=404, detail=f"Không có dữ liệu threat intel cho: {query}")
 
     fired_sum = 0
@@ -92,8 +134,40 @@ async def lookup_ip(q: str = Query(..., min_length=1)):
     for item in matched_ai:
         latest_ts = max(latest_ts, _parse_ts(item.get("@timestamp")))
 
-    total_reports = max(len(matched_wazuh), fired_sum)
-    abuse_score = min(100, int((total_reports * 0.7) + (max_level * 4)))
+    # ── Tích hợp AbuseIPDB ──────────────────────────────────────────
+    if abuse_data:
+        abuse_score   = int(abuse_data.get("abuseConfidenceScore", 0))
+        total_reports = int(abuse_data.get("totalReports", 0))
+        isp           = str(abuse_data.get("isp") or abuse_data.get("domain") or "Unknown")
+        usage_type    = str(abuse_data.get("usageType") or "Unknown")
+        is_tor        = bool(abuse_data.get("isTor", False))
+        is_vpn        = usage_type in ("VPN Service", "Hosting/Data Center", "Content Delivery Network")
+        if abuse_data.get("countryName") and country == "Unknown":
+            country = str(abuse_data["countryName"])
+        if abuse_data.get("countryCode"):
+            country_code = str(abuse_data["countryCode"])
+        else:
+            country_code = COUNTRY_CODE.get(country, "UN")
+        # Ghép category từ AbuseIPDB reports
+        for report in (abuse_data.get("reports") or [])[:10]:
+            comment = str(report.get("comment") or "").strip()
+            if comment and comment not in categories:
+                categories.append(comment)
+        # Nếu chưa có last_reported từ nội bộ, dùng AbuseIPDB
+        if latest_ts == datetime.fromtimestamp(0, tz=timezone.utc):
+            raw_last = abuse_data.get("lastReportedAt")
+            if raw_last:
+                latest_ts = _parse_ts(raw_last)
+    else:
+        # Fallback tính nội bộ khi không có AbuseIPDB
+        total_reports = max(len(matched_wazuh), fired_sum)
+        abuse_score   = min(100, int((total_reports * 0.7) + (max_level * 4)))
+        isp           = "AS-Unknown"
+        usage_type    = "Data Center" if abuse_score >= 50 else "Residential"
+        is_tor        = False
+        is_vpn        = False
+        country_code  = COUNTRY_CODE.get(country, "UN")
+    # ────────────────────────────────────────────────────────────────
 
     model_labels: list[str] = []
     for ai_item in matched_ai:
@@ -102,11 +176,7 @@ async def lookup_ip(q: str = Query(..., min_length=1)):
 
     categories = _dedupe_keep_order(categories)[:5]
     model_labels = _dedupe_keep_order(model_labels)[:4]
-
     country = country or "Unknown"
-    country_code = COUNTRY_CODE.get(country, "UN")
-    isp = "AS131333" if query == "37.111.53.110" else "AS-Unknown"
-    usage_type = "Data Center" if abuse_score >= 50 else "Residential"
 
     return {
         "ip": query,
@@ -115,13 +185,14 @@ async def lookup_ip(q: str = Query(..., min_length=1)):
         "country_code": country_code,
         "isp": isp,
         "usage_type": usage_type,
-        "is_tor": False,
-        "is_vpn": False,
+        "is_tor": is_tor,
+        "is_vpn": is_vpn,
         "categories": categories if categories else ["Hoạt động đáng ngờ"],
         "last_reported": latest_ts.isoformat().replace("+00:00", "Z"),
         "total_reports": total_reports,
         "so_canh_bao_wazuh": len(matched_wazuh),
         "mo_hinh_ai": model_labels,
+        "nguon_abuseipdb": abuse_data is not None,
     }
 
 
@@ -207,14 +278,16 @@ async def ioc_list(limit: int = Query(100, ge=1, le=500)):
 
 @router.get("/feeds")
 async def feed_sources():
+    s = get_settings()
+    abuseipdb_ok = bool(s.abuseipdb_api_key)
     return [
         {
             "ten": "AbuseIPDB",
             "icon": "🛡",
             "mo_ta": "IP reputation database",
-            "trang_thai": "ket_noi",
-            "ioc_count": 1247,
-            "cap_nhat": "5 phút trước",
+            "trang_thai": "ket_noi" if abuseipdb_ok else "ngat",
+            "ioc_count": len(_ABUSEIPDB_CACHE) if abuseipdb_ok else 0,
+            "cap_nhat": "Thời gian thực (cache 1h)" if abuseipdb_ok else "Chưa có API key",
         },
         {
             "ten": "Emerging Threats",

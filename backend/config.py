@@ -19,6 +19,19 @@ class Settings(BaseSettings):
     # Set true only after testing — auto-blocks via iptables
     ai_block_auto: bool = False
 
+    # ── Remote block (SSH sang VPS Suricata) ──────────────────────
+    # Đặt IP VPS Suricata (nơi traffic thực sự đi vào)
+    # Để trống chuỗi "" = block local (VPS dashboard)
+    suricata_vps_host: str = ""          # vd: "103.98.152.197"
+    suricata_vps_user: str = "root"
+    suricata_vps_key:  str = "/root/.ssh/id_rsa"  # private key path
+    suricata_vps_port: int = 22
+    # chain iptables trên VPS Suricata (nếu có AI_BLOCK chain dùng tên đó)
+    suricata_iptables_chain: str = "AI_BLOCK"  # hoặc "INPUT"
+
+    # ── Threat Intel ──────────────────────────────────────────────
+    abuseipdb_api_key: str = ""   # https://www.abuseipdb.com/account/api
+
     # ── WebSocket push interval ──────────────────────────────────
     ws_broadcast_interval: int = 10
     soc_mock_data: str = "false"

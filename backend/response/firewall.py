@@ -5,6 +5,7 @@ Tính năng:
   • Cache IP đã block (in-memory)  → tránh block trùng
   • Log file ghi lại: IP, thời gian, lý do
   • Validate + whitelist IP nội bộ
+  • Hỗ trợ block REMOTE qua SSH sang VPS Suricata
 """
 import logging
 import ipaddress
@@ -12,6 +13,9 @@ import subprocess
 import time
 from pathlib import Path
 from threading import Lock
+
+# Đường dẫn tuyệt đối — tránh lỗi PATH khi chạy qua systemd
+_IPTABLES = "/usr/sbin/iptables"
 
 log = logging.getLogger("firewall")
 
@@ -54,12 +58,55 @@ def _private(ip: str) -> bool:
 def _iptables_rule_exists(ip: str) -> bool:
     try:
         result = subprocess.run(
-            ["iptables", "-C", "INPUT", "-s", ip, "-j", "DROP"],
+            [_IPTABLES, "-C", "INPUT", "-s", ip, "-j", "DROP"],
             capture_output=True, text=True, timeout=5,
         )
         return result.returncode == 0
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return False
+
+
+def _ssh_block(ip: str, action: str, chain: str) -> dict:
+    """
+    Chạy iptables trên VPS Suricata (remote) qua SSH.
+    action: "block" | "unblock"
+    chain:  "AI_BLOCK" | "INPUT" | ...
+    """
+    from config import get_settings
+    s = get_settings()
+    if not s.suricata_vps_host:
+        # Không cấu hình SSH → skip, không lỗi
+        return {"ssh": "skipped", "reason": "SURICATA_VPS_HOST chưa được cấu hình"}
+
+    if action == "block":
+        cmd = f"{_IPTABLES} -I {chain} -s {ip} -j DROP"
+    else:
+        cmd = f"{_IPTABLES} -D {chain} -s {ip} -j DROP"
+
+    ssh_cmd = [
+        "ssh",
+        "-i", s.suricata_vps_key,
+        "-o", "StrictHostKeyChecking=no",
+        "-o", "ConnectTimeout=8",
+        "-p", str(s.suricata_vps_port),
+        f"{s.suricata_vps_user}@{s.suricata_vps_host}",
+        cmd,
+    ]
+    try:
+        result = subprocess.run(
+            ssh_cmd, capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0:
+            return {"ssh": "ok", "host": s.suricata_vps_host}
+        return {
+            "ssh": "error",
+            "host": s.suricata_vps_host,
+            "stderr": result.stderr.strip(),
+        }
+    except subprocess.TimeoutExpired:
+        return {"ssh": "timeout", "host": s.suricata_vps_host}
+    except Exception as e:
+        return {"ssh": "error", "detail": str(e)}
 
 
 def is_blocked(ip: str) -> bool:
@@ -112,14 +159,26 @@ def block_ip(ip: str, reason: str = "AI Engine auto-block") -> dict:
             "message": f"IP {ip} đã bị chặn trước đó",
         }
 
+    from config import get_settings
+    s = get_settings()
+
     try:
+        # 1. Block trên LOCAL (VPS dashboard / management)
         result = subprocess.run(
-            ["iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"],
+            [_IPTABLES, "-I", "INPUT", "-s", ip, "-j", "DROP"],
             capture_output=True, text=True, timeout=5,
         )
-        if result.returncode != 0:
-            return {"status": "error",
-                    "message": f"iptables lỗi: {result.stderr.strip()}"}
+        local_ok = result.returncode == 0
+        local_err = result.stderr.strip() if not local_ok else ""
+
+        # 2. Block trên VPS Suricata (nơi traffic thực sự đi vào)
+        ssh_result = _ssh_block(ip, "block", s.suricata_iptables_chain)
+
+        if not local_ok and ssh_result.get("ssh") not in ("ok", "skipped"):
+            return {
+                "status": "error",
+                "message": f"Lỗi local: {local_err} | SSH: {ssh_result.get('stderr', 'unknown')}",
+            }
 
         with _lock:
             _blocked.add(ip)
@@ -127,15 +186,17 @@ def block_ip(ip: str, reason: str = "AI Engine auto-block") -> dict:
         _write_log(ip, "BLOCK", reason)
 
         return {
-            "status":    "blocked",
-            "ip":        ip,
-            "message":   f"Đã chặn {ip} thành công",
-            "reason":    reason,
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "status":     "blocked",
+            "ip":         ip,
+            "message":    f"Đã chặn {ip} thành công",
+            "reason":     reason,
+            "timestamp":  time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "local":      "ok" if local_ok else f"warn: {local_err}",
+            "suricata_vps": ssh_result,
         }
 
     except FileNotFoundError:
-        return {"status": "error", "message": "iptables không tìm thấy trên server"}
+        return {"status": "error", "message": f"iptables không tìm thấy: {_IPTABLES}"}
     except subprocess.TimeoutExpired:
         return {"status": "error", "message": "iptables timeout"}
 
@@ -153,25 +214,33 @@ def unblock_ip(ip: str) -> dict:
         return {"status": "already_unblocked", "ip": ip,
                 "message": f"IP {ip} chưa bị chặn"}
 
+    from config import get_settings
+    s = get_settings()
+
     try:
         result = subprocess.run(
-            ["iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"],
+            [_IPTABLES, "-D", "INPUT", "-s", ip, "-j", "DROP"],
             capture_output=True, text=True, timeout=5,
         )
-        if result.returncode != 0:
-            return {"status": "error",
-                    "message": f"iptables lỗi: {result.stderr.strip()}"}
+        local_ok = result.returncode == 0
+
+        ssh_result = _ssh_block(ip, "unblock", s.suricata_iptables_chain)
 
         with _lock:
             _blocked.discard(ip)
 
         _write_log(ip, "UNBLOCK", "Manual unblock")
 
-        return {"status": "unblocked", "ip": ip,
-                "message": f"Đã bỏ chặn {ip}"}
+        return {
+            "status": "unblocked",
+            "ip": ip,
+            "message": f"Đã bỏ chặn {ip}",
+            "local": "ok" if local_ok else f"warn: {result.stderr.strip()}",
+            "suricata_vps": ssh_result,
+        }
 
     except FileNotFoundError:
-        return {"status": "error", "message": "iptables không tìm thấy trên server"}
+        return {"status": "error", "message": f"iptables không tìm thấy: {_IPTABLES}"}
     except subprocess.TimeoutExpired:
         return {"status": "error", "message": "iptables timeout"}
 
