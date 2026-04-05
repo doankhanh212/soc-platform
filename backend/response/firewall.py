@@ -9,13 +9,15 @@ Tính năng:
 """
 import logging
 import ipaddress
+import shutil
 import subprocess
 import time
 from pathlib import Path
 from threading import Lock
 
 # Đường dẫn tuyệt đối — tránh lỗi PATH khi chạy qua systemd
-_IPTABLES = "/usr/sbin/iptables"
+_IPTABLES = shutil.which("iptables") or "/usr/sbin/iptables"
+_SSH      = shutil.which("ssh")      or "/usr/bin/ssh"
 
 log = logging.getLogger("firewall")
 
@@ -84,7 +86,7 @@ def _ssh_block(ip: str, action: str, chain: str) -> dict:
         cmd = f"{_IPTABLES} -D {chain} -s {ip} -j DROP"
 
     ssh_cmd = [
-        "ssh",
+        _SSH,
         "-i", s.suricata_vps_key,
         "-o", "StrictHostKeyChecking=no",
         "-o", "ConnectTimeout=8",
