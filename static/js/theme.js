@@ -118,6 +118,12 @@ const THEMES = [
 const STORAGE_KEY = 'soc-theme';
 let _current = null;
 
+function _hexRgb(hex) {
+  const h = (hex || '#000').replace('#', '');
+  if (h.length === 3) return [parseInt(h[0]+h[0],16), parseInt(h[1]+h[1],16), parseInt(h[2]+h[2],16)];
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+
 function applyTheme(theme) {
   _current = theme;
   const root = document.documentElement;
@@ -137,6 +143,24 @@ function applyTheme(theme) {
   root.style.setProperty('--border2',theme.border.replace('0.2','0.4'));
   root.style.setProperty('--red',    theme.red);
   root.style.setProperty('--amber',  theme.amber);
+
+  // ── Derived accent/bg rgba bands ─────────────────────────────
+  const [ar,ag,ab] = _hexRgb(theme.accent);
+  const [br,bgr,bb] = _hexRgb(theme.bg);
+  const ac = `${ar},${ag},${ab}`;
+  const bc = `${br},${bgr},${bb}`;
+  root.style.setProperty('--glow',          `0 0 8px rgba(${ac},0.3)`);
+  root.style.setProperty('--glow2',         `0 0 20px rgba(${ac},0.15)`);
+  root.style.setProperty('--glow-strong',   `0 0 20px rgba(${ac},0.4)`);
+  root.style.setProperty('--topnav-bg',     `rgba(${bc},0.95)`);
+  root.style.setProperty('--grid-line',     `rgba(${ac},0.03)`);
+  root.style.setProperty('--border-subtle', `rgba(${ac},0.05)`);
+  root.style.setProperty('--dim',           `rgba(${ac},0.12)`);
+  root.style.setProperty('--accent-04',     `rgba(${ac},0.04)`);
+  root.style.setProperty('--accent-08',     `rgba(${ac},0.08)`);
+  root.style.setProperty('--accent-10',     `rgba(${ac},0.10)`);
+  root.style.setProperty('--accent-12',     `rgba(${ac},0.12)`);
+  root.style.setProperty('--accent-20',     `rgba(${ac},0.20)`);
 
   // Body background
   document.body.style.background = theme.bg;
