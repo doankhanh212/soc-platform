@@ -44,7 +44,7 @@ def compute_risk_score(anomaly_score: float, features: dict) -> dict:
     # ── Chuẩn hóa severity ───────────────────────────────────────
     # Wazuh rule.level: 0-15  (15 = critical nhất)
     # Suricata alert.severity: 1 = critical, 2 = high, 3 = medium
-    anomaly_score  = float(features.get("anomaly_score", anomaly_score) or anomaly_score or 0)
+    anomaly_score  = float(anomaly_score or 0)
     rule_level     = float(features.get("rule_level", 0) or 0)
     alert_severity = float(features.get("alert_severity", 0) or 0)
 

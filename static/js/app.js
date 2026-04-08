@@ -617,6 +617,21 @@ document.addEventListener('DOMContentLoaded', ()=>{
   // NOTE: auth.js will call socWS.connect() after login
   // auth.js will also trigger fullRefresh after login
   setInterval(loadCases, 30000);
+
+  // Poll /api/stats/today cho 3 counter AI
+  function fetchStatsToday() {
+    fetch('/api/stats/today')
+      .then(r => r.json())
+      .then(d => {
+        const el = id => document.getElementById(id);
+        if (el('kpi-triaged')) el('kpi-triaged').textContent = d.classified || 0;
+        if (el('kpi-tp'))      el('kpi-tp').textContent      = d.threats_stopped || 0;
+        if (el('kpi-fp'))      el('kpi-fp').textContent      = d.false_positives || 0;
+      })
+      .catch(() => {});
+  }
+  fetchStatsToday();
+  setInterval(fetchStatsToday, 30000);
 });
 
 window.socApp = { loadCases, fullRefresh };
@@ -1308,6 +1323,10 @@ document.addEventListener('DOMContentLoaded', () => {
             onclick='window.createCaseFromAlert(${JSON.stringify(a)})'>+ Vụ việc</button>
           <button class="aq-action-btn aq-btn-fp"
             onclick="window.alertQueue.markFP(${idx})">✗ FP</button>
+          ${src !== '—' ? `<button class="aq-action-btn" style="color:var(--cyan);font-size:10px"
+            onclick="window.alertQueue.lookupIP('${src}')" title="Tra cứu AbuseIPDB">🔍 IP</button>
+          <button class="aq-action-btn" style="color:#FF4444;font-size:10px"
+            onclick="confirmBlockIP('${src}',{ly_do:'Alert queue block'})" title="Chặn IP">🚫</button>` : ''}
         </td>
       </tr>`;
     }).join('');
@@ -1449,10 +1468,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  async function lookupIP(ip) {
+    try {
+      const res = await fetch(`/api/ai/lookup-ip?ip=${encodeURIComponent(ip)}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.error) {
+        window.toast?.(`Tra cứu lỗi: ${data.error}`, 'warn');
+        return;
+      }
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:99999';
+      modal.innerHTML = `
+        <div style="background:#0d1a0d;border:1px solid var(--cyan);border-radius:8px;padding:20px;width:380px;max-width:90vw">
+          <h3 style="color:var(--cyan);margin:0 0 12px">🔍 AbuseIPDB: ${data.ip}</h3>
+          <p style="color:#ccc;font-size:13px">Điểm nguy hiểm: <strong style="color:#FF4444">${data.abuse_score || 0}%</strong></p>
+          <p style="color:#aaa;font-size:12px">Quốc gia: ${data.country || '—'}</p>
+          <p style="color:#aaa;font-size:12px">ISP: ${data.isp || '—'}</p>
+          <p style="color:#aaa;font-size:12px">Tor: ${data.is_tor ? '✅ Có' : '❌ Không'}</p>
+          <p style="color:#aaa;font-size:12px">Báo cáo: ${data.total_reports || 0} lần</p>
+          <button onclick="this.closest('div[style]').remove()" style="margin-top:12px;padding:6px 16px;background:transparent;border:1px solid #555;color:#888;border-radius:4px;cursor:pointer">Đóng</button>
+        </div>`;
+      modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+      document.body.appendChild(modal);
+    } catch (err) {
+      window.toast?.('Lỗi tra cứu IP: ' + err.message, 'err');
+    }
+  }
+
   window.alertQueue = {
     load, reload, filterSev, filterTime, filterStatus,
     search, goPage, toggleOne, toggleAll,
-    clearBulk, bulkAction, investigate, markFP
+    clearBulk, bulkAction, investigate, markFP, lookupIP
   };
 })();
 

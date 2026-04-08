@@ -168,9 +168,34 @@ async function doLookup() {
   area.innerHTML = `<div style="color:#FFCC00;font-size:13px;padding:20px 0">⏳ Đang tra cứu ${tiEsc(query)}...</div>`;
 
   try {
-    const res = await fetch(`/api/threatintel/lookup?q=${encodeURIComponent(query)}`);
-    const data = await res.json();
-    if (data && data.error) throw new Error(String(data.error));
+    // Try existing threatintel endpoint first, fallback to AI lookup-ip
+    let data = null;
+    try {
+      const res = await fetch(`/api/threatintel/lookup?q=${encodeURIComponent(query)}`);
+      data = await res.json();
+      if (data && data.error) data = null;
+    } catch (_) {}
+
+    if (!data) {
+      const res2 = await fetch(`/api/ai/lookup-ip?ip=${encodeURIComponent(query)}`, { method: 'POST' });
+      const d2 = await res2.json();
+      if (d2 && !d2.error) {
+        data = {
+          ip: d2.ip,
+          abuse_score: d2.abuse_score || 0,
+          country: d2.country || 'Unknown',
+          country_code: d2.country || 'XX',
+          isp: d2.isp || 'Unknown',
+          usage_type: d2.usage_type || 'Unknown',
+          is_tor: d2.is_tor || false,
+          is_vpn: false,
+          total_reports: d2.total_reports || 0,
+          last_reported: d2.last_reported || null,
+          categories: [],
+          mo_hinh_ai: [],
+        };
+      }
+    }
     area.innerHTML = renderIPResultCard(data || buildMockResult(query));
   } catch (_error) {
     area.innerHTML = renderIPResultCard(buildMockResult(query));
@@ -321,6 +346,26 @@ async function loadIOCList() {
     items = Array.isArray(data) ? data : [];
   } catch (_error) {
     items = [];
+  }
+
+  // Fallback: nếu không có IOC từ endpoint cũ, lấy từ AI threat-intel
+  if (!items.length) {
+    try {
+      const res2 = await fetch('/api/ai/threat-intel/iocs?limit=50');
+      const d2 = await res2.json();
+      if (d2 && Array.isArray(d2.iocs)) {
+        items = d2.iocs.map((ioc, i) => ({
+          ioc_id: `ai-${i}`,
+          gia_tri: ioc.ip,
+          loai: ioc.type || 'ip',
+          muc_do: ioc.count > 500 ? 'cao' : ioc.count > 100 ? 'trung_binh' : 'thap',
+          mo_ta: `${ioc.count} cảnh báo trong 24h`,
+          nguon: d2.source || 'wazuh+suricata',
+          lan_cuoi: new Date().toISOString(),
+          da_kich_hoat: true,
+        }));
+      }
+    } catch (_) {}
   }
   TI_STATE.iocItems = items;
 

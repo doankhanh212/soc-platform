@@ -96,7 +96,7 @@ def _ssh_block(ip: str, action: str, chain: str) -> dict:
     ]
     try:
         result = subprocess.run(
-            ssh_cmd, capture_output=True, text=True, timeout=15
+            ssh_cmd, capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0:
             return {"ssh": "ok", "host": s.suricata_vps_host}
@@ -109,6 +109,34 @@ def _ssh_block(ip: str, action: str, chain: str) -> dict:
         return {"ssh": "timeout", "host": s.suricata_vps_host}
     except Exception as e:
         return {"ssh": "error", "detail": str(e)}
+
+
+def load_blocked_from_iptables() -> int:
+    """Đọc lại danh sách IP đang bị DROP từ iptables vào cache khi khởi động."""
+    try:
+        result = subprocess.run(
+            [_IPTABLES, "-L", "INPUT", "-n"],
+            capture_output=True, text=True, timeout=10,
+        )
+        loaded = 0
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            # Dòng DROP thường có dạng: DROP  all  --  <ip>  0.0.0.0/0
+            if len(parts) >= 4 and parts[0] == "DROP":
+                ip_candidate = parts[3]
+                try:
+                    ipaddress.ip_address(ip_candidate)
+                    if not _private(ip_candidate):
+                        with _lock:
+                            _blocked.add(ip_candidate)
+                        loaded += 1
+                except ValueError:
+                    pass
+        log.info("Loaded %d blocked IPs from iptables into cache", loaded)
+        return loaded
+    except Exception as e:
+        log.warning("Could not load iptables rules: %s", e)
+        return 0
 
 
 def is_blocked(ip: str) -> bool:

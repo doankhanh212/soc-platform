@@ -3,6 +3,7 @@ from pathlib import Path
 import ipaddress
 
 from fastapi import APIRouter, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
 from services import (
@@ -18,7 +19,10 @@ from services import (
     get_top_rules,
     get_suricata_signature_stats,
 )
-from response.firewall import block_ip as fw_block, unblock_ip as fw_unblock
+from response.firewall import (
+    block_ip as fw_block, unblock_ip as fw_unblock,
+    get_blocked_list, get_block_log,
+)
 
 alerts_router = APIRouter(prefix="/api/alerts", tags=["alerts"])
 stats_router = APIRouter(prefix="/api/stats", tags=["stats"])
@@ -96,7 +100,7 @@ async def _block_ip_core(ip: str, reason: str = "Manual block"):
     if not _is_valid_ipv4(ip):
         return JSONResponse({"success": False, "message": "IP không hợp lệ"}, status_code=400)
 
-    result = fw_block(ip, reason=reason)
+    result = await run_in_threadpool(fw_block, ip, reason)
 
     if result["status"] in ("blocked", "already_blocked"):
         return {
@@ -140,8 +144,62 @@ async def unblock_ip_route(ip: str = Query(...)):
     if not _is_valid_ipv4(ip):
         return JSONResponse({"success": False, "message": "IP không hợp lệ"}, status_code=400)
 
-    result = fw_unblock(ip)
+    result = await run_in_threadpool(fw_unblock, ip)
     if result["status"] in ("unblocked", "already_unblocked"):
         return {"success": True, "status": result["status"], "ip": ip,
                 "message": result.get("message", ""), "suricata_vps": result.get("suricata_vps")}
     return JSONResponse({"success": False, "message": result.get("message", "Lỗi unblock")}, status_code=500)
+
+
+# ══════════════════════════════════════════════════════════════════
+# GET /api/stats/today — 3 counter cho Dashboard
+# ══════════════════════════════════════════════════════════════════
+
+@stats_router.get("/today")
+async def stats_today():
+    """Đã phân loại, Dừng mối đe dọa, Báo động nhầm."""
+    from services.pipeline import get_analyzed_alerts
+
+    alerts      = get_analyzed_alerts(limit=500)
+    classified  = len([a for a in alerts if a.get("risk_level") in ("HIGH", "MEDIUM", "LOW")])
+    threats     = len(get_blocked_list())
+    false_pos   = len([a for a in alerts
+                       if a.get("risk_level") == "LOW"
+                       and float(a.get("anomaly_score", 0) or 0) < 0.2])
+    return {
+        "classified":      classified,
+        "threats_stopped": threats,
+        "false_positives": false_pos,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════
+# /api/blocked-ips/* — CRUD danh sách IP bị chặn
+# ══════════════════════════════════════════════════════════════════
+
+blocked_router = APIRouter(prefix="/api/blocked-ips", tags=["blocked"])
+
+
+@blocked_router.get("/count")
+async def blocked_count():
+    return {"count": len(get_blocked_list())}
+
+
+@blocked_router.get("")
+async def blocked_list_endpoint():
+    ips = get_blocked_list()
+    return {"ips": ips, "count": len(ips), "log": get_block_log(limit=100)}
+
+
+@blocked_router.post("")
+async def block_ip_endpoint(
+    ip:       str = Query(...),
+    reason:   str = Query("Manual block"),
+    alert_id: str = Query(None),
+):
+    return await run_in_threadpool(fw_block, ip, reason)
+
+
+@blocked_router.delete("/{ip}")
+async def unblock_ip_endpoint(ip: str):
+    return await run_in_threadpool(fw_unblock, ip)

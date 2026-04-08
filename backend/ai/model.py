@@ -27,7 +27,7 @@ class IsolationForestModel:
     _KEYS = ("connection_count", "alert_frequency",
              "request_rate", "port_variance")
 
-    def __init__(self, contamination: float = 0.1, min_samples: int = 30):
+    def __init__(self, contamination: float = 0.1, min_samples: int = 10):
         self.contamination = contamination
         self._model: _SKLearnIF | None = None
         self._buffer: list[list[float]] = []
@@ -86,10 +86,10 @@ class IsolationForestModel:
     def _heuristic(self, f: dict) -> float:
         """Fallback đơn giản khi chưa đủ data train."""
         s = 0.0
-        if f.get("connection_count", 0) > 50:  s += 0.3
-        if f.get("alert_frequency",  0) > 20:  s += 0.3
-        if f.get("request_rate",     0) > 10:  s += 0.2
-        if f.get("port_variance",    0) > 30:  s += 0.2
+        if f.get("connection_count", 0) > 20:  s += 0.35
+        if f.get("alert_frequency",  0) > 5:   s += 0.30
+        if f.get("request_rate",     0) > 3:   s += 0.20
+        if f.get("port_variance",    0) > 10:  s += 0.15
         return min(1.0, s)
 
     @property
@@ -112,8 +112,8 @@ class EWMAModel:
     def __init__(self, alpha: float = 0.3, threshold_sigma: float = 3.0):
         self.alpha           = alpha
         self.threshold_sigma = threshold_sigma
-        self._mean: dict[str, float] = defaultdict(float)
-        self._var:  dict[str, float] = defaultdict(lambda: 1.0)
+        self._mean: dict[str, float] = {}
+        self._var:  dict[str, float] = {}
 
     def score(self, ip: str, value: float) -> float:
         """

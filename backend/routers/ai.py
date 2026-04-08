@@ -16,6 +16,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from datetime import datetime, timezone
 from collections import defaultdict
+import httpx
 
 from services.pipeline import (
     analyze_single_event,
@@ -122,32 +123,47 @@ async def models_status():
         alerts = []
 
     threshold = 0.6
-    model_defs = ["IsolationForest", "EWMA", "CUSUM", "Entropy"]
+    KEY_LABEL_MAP = {
+        "isolation_forest": "Hành vi bất thường",
+        "ewma":             "Đột biến lưu lượng",
+        "cusum":            "Leo thang âm thầm",
+    }
+    # Map back to UI model names for compatibility
+    KEY_TO_MODEL = {
+        "isolation_forest": "IsolationForest",
+        "ewma":             "EWMA",
+        "cusum":            "CUSUM",
+    }
     scores: dict[str, list[float]] = defaultdict(list)
     detections: dict[str, int] = defaultdict(int)
 
     for item in alerts:
         model_scores = item.get("model_scores", {}) or {}
-        for model in model_defs:
-            raw = model_scores.get(model)
-            if raw is None:
-                continue
-            val = float(raw or 0)
-            scores[model].append(val)
+        for key in KEY_LABEL_MAP:
+            val = float(model_scores.get(key) or 0)
+            scores[key].append(val)
             if val >= threshold:
-                detections[model] += 1
+                detections[key] += 1
 
     rows = []
-    for model in model_defs:
-        values = scores.get(model, [])
+    for key, label in KEY_LABEL_MAP.items():
+        values = scores.get(key, [])
         avg_score = (sum(values) / len(values)) if values else 0.0
         rows.append({
-            "model": model,
+            "model": KEY_TO_MODEL[key],
             "running": True,
             "score": round(avg_score, 3),
             "threshold": threshold,
-            "detections_today": int(detections.get(model, 0)),
+            "detections_today": int(detections.get(key, 0)),
         })
+    # Entropy placeholder
+    rows.append({
+        "model": "Entropy",
+        "running": True,
+        "score": 0.0,
+        "threshold": threshold,
+        "detections_today": 0,
+    })
 
     return {
         "threshold": threshold,
@@ -230,8 +246,8 @@ async def get_anomalies(
                 latest_geo_country = str(alert.get("GeoLocation", {}).get("country_name") or "Unknown")
 
         model_scores = item.get("model_scores", {}) or {}
-        if_score = float(model_scores.get("IsolationForest", 0.0) or 0.0)
-        cusum_score = float(model_scores.get("CUSUM", 0.0) or 0.0) * 10
+        if_score = float(model_scores.get("isolation_forest", 0.0) or 0.0)
+        cusum_score = float(model_scores.get("cusum", 0.0) or 0.0)
         total_count = len(related)
         risk = _risk_value(item)
 
@@ -314,3 +330,102 @@ async def test_pipeline():
             "reasons":       r["explanation"]["reasons"],
         })
     return {"message": "Pipeline test completed", "results": results}
+
+
+# ══════════════════════════════════════════════════════════════════
+# GET /engine-stats — 4 monitor cards + summary stats
+# ══════════════════════════════════════════════════════════════════
+
+@router.get("/engine-stats")
+async def engine_stats():
+    """4 monitor cards + summary stats cho trang Động cơ AI."""
+    alerts   = get_analyzed_alerts(limit=500)
+    base     = get_ai_stats()
+    buckets: dict[str, list[float]] = {"isolation_forest": [], "ewma": [], "cusum": []}
+    total_anomalies = 0
+    risk_scores: list[float] = []
+
+    for a in alerts:
+        ms = a.get("model_scores") or {}
+        for key in buckets:
+            v = ms.get(key)
+            if v is not None:
+                buckets[key].append(float(v))
+        if float(a.get("anomaly_score", 0) or 0) > 0.5:
+            total_anomalies += 1
+        rs = a.get("risk_score")
+        if rs is not None:
+            risk_scores.append(float(rs))
+
+    def _avg(lst: list[float]) -> float:
+        return round(sum(lst) / len(lst), 3) if lst else 0.0
+
+    return {
+        "monitors": {
+            "hanh_vi_bat_thuong":  _avg(buckets["isolation_forest"]),
+            "dot_bien_luu_luong":  _avg(buckets["ewma"]),
+            "leo_thang_am_tham":   _avg(buckets["cusum"]),
+            "du_lieu_ma_hoa_an":   0.0,
+        },
+        "bat_thuong_ai_24h":       total_anomalies,
+        "ip_tu_song_chan":         base["blocked_ips"],
+        "diem_bui_ro_trung_binh":  _avg(risk_scores),
+        "total_analyzed":          base["total_analyzed"],
+        "high_risk_ips":           base["high_risk_ips"],
+        "top_ips":                 base["top_ips"],
+    }
+
+
+# ══════════════════════════════════════════════════════════════════
+# POST /lookup-ip — AbuseIPDB enrichment
+# ══════════════════════════════════════════════════════════════════
+
+@router.post("/lookup-ip")
+async def lookup_ip(ip: str = Query(...)):
+    """Tra cứu IP trên AbuseIPDB."""
+    from config import get_settings
+    cfg = get_settings()
+
+    if not getattr(cfg, "abuseipdb_api_key", None):
+        return {"error": "AbuseIPDB API key chưa cấu hình", "ip": ip}
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                "https://api.abuseipdb.com/api/v2/check",
+                params={"ipAddress": ip, "maxAgeInDays": 90, "verbose": True},
+                headers={"Key": cfg.abuseipdb_api_key, "Accept": "application/json"},
+            )
+            resp.raise_for_status()
+            d = resp.json().get("data", {})
+            return {
+                "ip":            ip,
+                "abuse_score":   d.get("abuseConfidenceScore", 0),
+                "country":       d.get("countryCode", ""),
+                "isp":           d.get("isp", ""),
+                "domain":        d.get("domain", ""),
+                "is_tor":        d.get("isTor", False),
+                "total_reports": d.get("totalReports", 0),
+                "last_reported": d.get("lastReportedAt", ""),
+                "usage_type":    d.get("usageType", ""),
+            }
+    except httpx.HTTPStatusError as e:
+        return {"error": f"AbuseIPDB lỗi {e.response.status_code}", "ip": ip}
+    except Exception as e:
+        return {"error": str(e), "ip": ip}
+
+
+# ══════════════════════════════════════════════════════════════════
+# GET /threat-intel/iocs — Top attacking IPs làm IOC list
+# ══════════════════════════════════════════════════════════════════
+
+@router.get("/threat-intel/iocs")
+async def threat_intel_iocs(limit: int = Query(50, ge=1, le=200)):
+    """Top attacking IPs từ Wazuh/Suricata làm IOC list."""
+    from services import get_top_attacking_ips
+    top = await get_top_attacking_ips(size=limit)
+    return {
+        "iocs":   [{"ip": x["ip"], "count": x["count"], "type": "ip"} for x in top],
+        "total":  len(top),
+        "source": "wazuh+suricata",
+    }

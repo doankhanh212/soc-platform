@@ -180,6 +180,14 @@
       if (res.ok) statusData = await res.json();
     } catch (_error) {}
 
+    // Also fetch anomaly IPs for mini tables
+    let anomalyIPs = [];
+    try {
+      const res2 = await fetch('/api/ai/anomalies?limit=10');
+      if (res2.ok) anomalyIPs = await res2.json();
+      if (!Array.isArray(anomalyIPs)) anomalyIPs = [];
+    } catch (_) {}
+
     const threshold = Number(statusData.threshold ?? 0.6);
     const map = new Map((statusData.models || []).map((m) => [m.model, m]));
 
@@ -200,6 +208,32 @@
         statusClass = 'running';
       }
 
+      // Mini anomaly table for this card
+      const relevantIPs = anomalyIPs.filter(a => {
+        const models = a.mo_hinh_kich_hoat || [];
+        return models.includes(card.model.toLowerCase()) || models.includes(card.model);
+      }).slice(0, 5);
+
+      const miniTable = relevantIPs.length ? `
+        <table style="width:100%;font-size:10px;margin-top:8px;border-collapse:collapse">
+          <thead><tr style="color:#555">
+            <th style="text-align:left;padding:2px 4px">IP</th>
+            <th style="text-align:right;padding:2px 4px">Điểm</th>
+            <th style="text-align:center;padding:2px 4px"></th>
+          </tr></thead>
+          <tbody>${relevantIPs.map(a => `
+            <tr style="border-top:1px solid #1a2a1a">
+              <td style="color:var(--cyan);padding:2px 4px;font-family:monospace">${esc(a.ip || '—')}</td>
+              <td style="color:#FFCC00;text-align:right;padding:2px 4px">${(Number(a.diem_rui_ro || 0) * 100).toFixed(1)}%</td>
+              <td style="text-align:center;padding:2px 4px">
+                <button type="button" onclick='window.aiEngineApp.confirmBlockIP(${JSON.stringify(a.ip || "")})'
+                  style="background:none;border:none;color:#FF4444;cursor:pointer;font-size:11px" title="Chặn IP">🚫</button>
+              </td>
+            </tr>
+          `).join('')}</tbody>
+        </table>
+      ` : '';
+
       return `
         <div class="ai-model-card">
           <div class="ai-model-head">
@@ -212,6 +246,7 @@
             <span class="ai-model-fill" style="width:${Math.max(0, Math.min(100, score * 100))}%;background:${color}"></span>
           </div>
           <div class="ai-model-foot">Phát hiện ${detectionCount.toLocaleString('vi-VN')} bất thường hôm nay</div>
+          ${miniTable}
         </div>
       `;
     }).join('');
@@ -505,15 +540,37 @@
     `;
   }
 
+  async function fetchEngineStats() {
+    try {
+      const res = await fetch('/api/ai/engine-stats');
+      if (!res.ok) return null;
+      return await res.json();
+    } catch (_error) {
+      return null;
+    }
+  }
+
+  function applyEngineStats(stats) {
+    if (!stats) return;
+    const totalEl = byId('ai-total');
+    const blockedEl = byId('ai-blocked');
+    const avgEl = byId('ai-avg');
+    if (totalEl) totalEl.textContent = formatCount(stats.bat_thuong_ai_24h || 0);
+    if (blockedEl) blockedEl.textContent = formatCount(stats.ip_tu_song_chan || 0);
+    if (avgEl) avgEl.textContent = stats.diem_bui_ro_trung_binh ? stats.diem_bui_ro_trung_binh.toFixed(3) : '—';
+  }
+
   async function refreshAIEngine() {
-    const [alerts, anomalyPayload] = await Promise.all([
+    const [alerts, anomalyPayload, engineStats] = await Promise.all([
       fetchAIAlerts(),
       fetchAIAnomalies(500),
+      fetchEngineStats(),
     ]);
     state.anomalyList = anomalyPayload.list;
     state.anomalyTotal = anomalyPayload.total;
 
     loadMetricCards(alerts, anomalyPayload.total);
+    if (engineStats) applyEngineStats(engineStats);
     loadAnomalyTable(alerts);
     await Promise.all([loadMonitorCards(), loadTopRiskIP()]);
     setStepperTimestamp();
