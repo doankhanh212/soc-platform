@@ -151,13 +151,13 @@ async def extract_features_batch(window_minutes: int = 15) -> list[dict]:
     df = pd.json_normalize(hits, sep="_")
 
     # Chuẩn hóa cột src_ip (Suricata: data.src_ip, Wazuh: data.srcip).
+    # KHÔNG fallback sang agent.ip ở batch mode, nếu không sẽ lấy chính IP sensor/VPS
+    # làm attacker source và gây false positive auto-block.
     src_ip_series = pd.Series(index=df.index, dtype="object")
     if "data_src_ip" in df.columns:
         src_ip_series = src_ip_series.combine_first(df["data_src_ip"])
     if "data_srcip" in df.columns:
         src_ip_series = src_ip_series.combine_first(df["data_srcip"])
-    if "agent_ip" in df.columns:
-        src_ip_series = src_ip_series.combine_first(df["agent_ip"])
     df["src_ip"] = src_ip_series.fillna("")
 
     df["dest_port"] = pd.to_numeric(
