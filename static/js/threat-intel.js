@@ -612,7 +612,8 @@ async function loadFeedSources() {
             <span>${tiEsc(s.cap_nhat)}</span>
           </div>
           <div style="display:flex;gap:8px">
-            <button style="flex:1;padding:6px;background:transparent;border:1px solid var(--border-subtle);color:var(--muted);border-radius:4px;font-size:11px;cursor:pointer">
+            <button onclick="openFeedConfig('${tiEsc(s.feed_id || '')}')"
+              style="flex:1;padding:6px;background:transparent;border:1px solid var(--border-subtle);color:var(--muted);border-radius:4px;font-size:11px;cursor:pointer">
               ⚙ Cấu hình
             </button>
             ${s.trang_thai === 'ket_noi' ? `
@@ -627,8 +628,9 @@ async function loadFeedSources() {
     </div>
 
     <div style="margin-top:16px;padding:12px;background:var(--bg1);border:1px solid var(--border-subtle);border-radius:8px;font-size:12px;color:var(--muted)">
-      💡 <strong style="color:var(--muted)">Gợi ý:</strong> Kết nối AbuseIPDB để tra cứu IP thật.
-      Đăng ký tại <a href="https://www.abuseipdb.com" target="_blank" style="color:var(--green)">abuseipdb.com</a> → lấy API key → cấu hình trong Cài đặt.
+      💡 <strong style="color:var(--muted)">Gợi ý:</strong> Nhấn <strong style="color:var(--green)">⚙ Cấu hình</strong> trên mỗi feed để nhập API key hoặc điều chỉnh thông số.
+      Đăng ký AbuseIPDB tại <a href="https://www.abuseipdb.com" target="_blank" style="color:var(--green)">abuseipdb.com</a> —
+      VirusTotal tại <a href="https://www.virustotal.com" target="_blank" style="color:var(--green)">virustotal.com</a>.
     </div>
   `;
 }
@@ -729,6 +731,182 @@ function openThreatHunting(ip) {
   }
 }
 
+/* ─── Feed Config Modal ──────────────────────────────────────────── */
+
+const FEED_CONFIG_FIELDS = {
+  abuseipdb: [
+    { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'Nhập AbuseIPDB API key...' },
+    { key: 'cache_ttl', label: 'Cache TTL (giây)', type: 'number', placeholder: '3600' },
+    { key: 'enabled', label: 'Kích hoạt', type: 'toggle' },
+  ],
+  virustotal: [
+    { key: 'api_key', label: 'API Key', type: 'password', placeholder: 'Nhập VirusTotal API key...' },
+    { key: 'enabled', label: 'Kích hoạt', type: 'toggle' },
+  ],
+  wazuh_suricata: [
+    { key: 'sync_interval', label: 'Chu kỳ đồng bộ (giây)', type: 'number', placeholder: '10' },
+    { key: 'enabled', label: 'Kích hoạt', type: 'toggle' },
+  ],
+  ai_engine: [
+    { key: 'risk_threshold', label: 'Ngưỡng rủi ro (0.0 – 1.0)', type: 'number', placeholder: '0.70', step: '0.01', min: '0', max: '1' },
+    { key: 'sync_interval', label: 'Chu kỳ đồng bộ (giây)', type: 'number', placeholder: '60' },
+    { key: 'auto_block', label: 'Tự động chặn IP', type: 'toggle' },
+    { key: 'enabled', label: 'Kích hoạt', type: 'toggle' },
+  ],
+};
+
+const FEED_NAMES = {
+  abuseipdb: 'AbuseIPDB',
+  virustotal: 'VirusTotal',
+  wazuh_suricata: 'Wazuh + Suricata',
+  ai_engine: 'AI Engine',
+};
+
+function _closeFeedModal() {
+  const overlay = document.getElementById('feed-config-overlay');
+  if (overlay) overlay.remove();
+}
+
+async function openFeedConfig(feedId) {
+  if (!feedId || !FEED_CONFIG_FIELDS[feedId]) return;
+
+  // Fetch current config from backend
+  let current = {};
+  try {
+    const res = await fetch(`/api/settings/feeds/${encodeURIComponent(feedId)}`);
+    if (res.ok) current = await res.json();
+  } catch (_) {}
+
+  const fields = FEED_CONFIG_FIELDS[feedId];
+  const feedName = FEED_NAMES[feedId] || feedId;
+
+  const fieldRows = fields.map((f) => {
+    if (f.type === 'toggle') {
+      const checked = Boolean(current[f.key]);
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <label style="color:var(--text);font-size:13px">${tiEsc(f.label)}</label>
+          <label style="position:relative;display:inline-block;width:40px;height:22px;cursor:pointer">
+            <input type="checkbox" id="fcfg-${tiEsc(f.key)}" ${checked ? 'checked' : ''}
+              style="opacity:0;width:0;height:0;position:absolute"/>
+            <span style="position:absolute;top:0;left:0;right:0;bottom:0;background:${checked ? 'var(--green)' : 'var(--border)'};
+              border-radius:11px;transition:background .2s"
+              onclick="this.previousElementSibling.checked=!this.previousElementSibling.checked;
+                       this.style.background=this.previousElementSibling.checked?'var(--green)':'var(--border)';
+                       var dot=this.querySelector('span');if(dot)dot.style.transform=this.previousElementSibling.checked?'translateX(18px)':'translateX(0)'">
+              <span style="position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;
+                transition:transform .2s;transform:${checked ? 'translateX(18px)' : 'translateX(0)'}"></span>
+            </span>
+          </label>
+        </div>
+      `;
+    }
+    if (f.type === 'password') {
+      const hasKey = Boolean(current.has_api_key);
+      const preview = String(current.api_key_preview || '');
+      return `
+        <div style="margin-bottom:14px">
+          <label style="color:var(--text);font-size:13px;display:block;margin-bottom:4px">${tiEsc(f.label)}</label>
+          ${hasKey ? `<div style="font-size:11px;color:var(--muted);margin-bottom:4px">Hiện tại: ${tiEsc(preview)}</div>` : ''}
+          <input id="fcfg-${tiEsc(f.key)}" type="password" placeholder="${tiEsc(f.placeholder || '')}"
+            style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border-subtle);
+              color:var(--text);border-radius:4px;font-size:13px;font-family:monospace;box-sizing:border-box"/>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">Để trống nếu không muốn thay đổi</div>
+        </div>
+      `;
+    }
+    // number / text
+    const val = current[f.key] ?? '';
+    return `
+      <div style="margin-bottom:14px">
+        <label style="color:var(--text);font-size:13px;display:block;margin-bottom:4px">${tiEsc(f.label)}</label>
+        <input id="fcfg-${tiEsc(f.key)}" type="number" value="${tiEsc(String(val))}"
+          placeholder="${tiEsc(f.placeholder || '')}"
+          ${f.step ? `step="${tiEsc(f.step)}"` : ''}
+          ${f.min != null ? `min="${tiEsc(f.min)}"` : ''}
+          ${f.max != null ? `max="${tiEsc(f.max)}"` : ''}
+          style="width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border-subtle);
+            color:var(--text);border-radius:4px;font-size:13px;box-sizing:border-box"/>
+      </div>
+    `;
+  }).join('');
+
+  // Remove existing overlay
+  _closeFeedModal();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'feed-config-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);z-index:10000;display:flex;align-items:center;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--bg1);border:1px solid var(--border);border-radius:10px;padding:24px;
+      width:420px;max-width:92vw;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <h3 style="color:var(--green);font-size:16px;margin:0">⚙ Cấu hình ${tiEsc(feedName)}</h3>
+        <button onclick="document.getElementById('feed-config-overlay')?.remove()"
+          style="background:transparent;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px">✕</button>
+      </div>
+      ${fieldRows}
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:14px;border-top:1px solid var(--border-subtle)">
+        <button onclick="document.getElementById('feed-config-overlay')?.remove()"
+          style="padding:8px 18px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:6px;font-size:13px;cursor:pointer">
+          Hủy
+        </button>
+        <button onclick="saveFeedConfig('${tiEsc(feedId)}')"
+          style="padding:8px 18px;background:var(--bg);border:1px solid var(--green);color:var(--green);border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">
+          💾 Lưu cấu hình
+        </button>
+      </div>
+    </div>
+  `;
+  // Close on overlay bg click
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) _closeFeedModal(); });
+  document.body.appendChild(overlay);
+}
+
+async function saveFeedConfig(feedId) {
+  if (!feedId || !FEED_CONFIG_FIELDS[feedId]) return;
+  const fields = FEED_CONFIG_FIELDS[feedId];
+  const body = {};
+
+  for (const f of fields) {
+    const el = document.getElementById(`fcfg-${f.key}`);
+    if (!el) continue;
+
+    if (f.type === 'toggle') {
+      body[f.key] = el.checked;
+    } else if (f.type === 'password') {
+      const val = el.value.trim();
+      if (val) body[f.key] = val;  // Only send if user typed a new key
+    } else if (f.type === 'number') {
+      const val = el.value.trim();
+      if (val !== '') body[f.key] = Number(val);
+    }
+  }
+
+  if (!Object.keys(body).length) {
+    tiNotify('Không có thay đổi nào', 'warn');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/settings/feeds/${encodeURIComponent(feedId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      tiNotify(`Đã lưu cấu hình ${FEED_NAMES[feedId] || feedId}`, 'ok');
+      _closeFeedModal();
+      await loadFeedSources();  // Refresh feed cards
+    } else {
+      tiNotify(data.detail || 'Lưu thất bại', 'err');
+    }
+  } catch (_) {
+    tiNotify('Không thể kết nối API settings', 'err');
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   if (document.getElementById('page-threat-intel')?.classList.contains('active')) {
     initThreatIntel();
@@ -767,3 +945,5 @@ window.formatThoiGianTuongDoi = formatThoiGianTuongDoi;
 window.confirmBlockIP = window.confirmBlockIP || confirmBlockIP;
 window.createIncidentFromIP = createIncidentFromIP;
 window.openThreatHunting = openThreatHunting;
+window.openFeedConfig = openFeedConfig;
+window.saveFeedConfig = saveFeedConfig;

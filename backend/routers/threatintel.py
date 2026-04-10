@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from config import get_settings
 from services import get_ai_anomaly_alerts, get_recent_alerts
+from services.settings_store import get_feed_config
 
 # Cache AbuseIPDB result 1 giờ để không bị rate-limit (1000 req/ngày free)
 _ABUSEIPDB_CACHE: dict[str, tuple[float, dict]] = {}
@@ -59,20 +60,32 @@ def _dedupe_keep_order(values: list[str]) -> list[str]:
 async def _fetch_abuseipdb(ip: str) -> dict[str, Any] | None:
     """Gọi AbuseIPDB v2 /check. Trả None nếu không có key hoặc lỗi."""
     import time
-    s = get_settings()
-    if not s.abuseipdb_api_key:
+
+    # Ưu tiên lấy API key từ settings store (UI), fallback sang config.py
+    feed_cfg = get_feed_config("abuseipdb")
+    api_key = str(feed_cfg.get("api_key") or "").strip()
+    if not api_key:
+        s = get_settings()
+        api_key = str(s.abuseipdb_api_key or "").strip()
+    if not api_key:
         return None
+
+    # Feed disabled từ UI?
+    if not feed_cfg.get("enabled", True):
+        return None
+
+    cache_ttl = int(feed_cfg.get("cache_ttl", _CACHE_TTL))
 
     # Kiểm tra cache
     cached = _ABUSEIPDB_CACHE.get(ip)
-    if cached and (time.time() - cached[0]) < _CACHE_TTL:
+    if cached and (time.time() - cached[0]) < cache_ttl:
         return cached[1]
 
     try:
         async with httpx.AsyncClient(timeout=8) as client:
             resp = await client.get(
                 "https://api.abuseipdb.com/api/v2/check",
-                headers={"Key": s.abuseipdb_api_key, "Accept": "application/json"},
+                headers={"Key": api_key, "Accept": "application/json"},
                 params={"ipAddress": ip, "maxAgeInDays": 90, "verbose": ""},
             )
         if resp.status_code != 200:
@@ -245,60 +258,97 @@ async def ioc_list(limit: int = Query(100, ge=1, le=500)):
 
 @router.get("/feeds")
 async def feed_sources():
-    s = get_settings()
-    abuseipdb_ok = bool(s.abuseipdb_api_key)
+    from services.settings_store import load_settings as _load_cfg
+    cfg = _load_cfg()
+    feeds_cfg = cfg.get("feeds", {})
+
+    # AbuseIPDB: check key from store OR config.py fallback
+    abuse_cfg = feeds_cfg.get("abuseipdb", {})
+    abuse_key = str(abuse_cfg.get("api_key") or "").strip()
+    if not abuse_key:
+        s = get_settings()
+        abuse_key = str(s.abuseipdb_api_key or "").strip()
+    abuse_enabled = abuse_cfg.get("enabled", True)
+    abuseipdb_ok = bool(abuse_key) and abuse_enabled
+
+    # VirusTotal: check key from store OR config.py fallback
+    vt_cfg = feeds_cfg.get("virustotal", {})
+    vt_key = str(vt_cfg.get("api_key") or "").strip()
+    if not vt_key:
+        s = get_settings()
+        vt_key = str(s.virustotal_api_key or "").strip()
+    vt_enabled = vt_cfg.get("enabled", False)
+    vt_ok = bool(vt_key) and vt_enabled
+
+    # Wazuh + Suricata
+    ws_cfg = feeds_cfg.get("wazuh_suricata", {})
+    ws_enabled = ws_cfg.get("enabled", True)
+    ws_interval = ws_cfg.get("sync_interval", 10)
+
+    # AI Engine
+    ai_cfg = feeds_cfg.get("ai_engine", {})
+    ai_enabled = ai_cfg.get("enabled", True)
+    ai_interval = ai_cfg.get("sync_interval", 60)
 
     # Đếm IOC thật từ OpenSearch
-    try:
-        wazuh = await get_recent_alerts(size=1200, min_level=1)
-        unique_ips = {str(a.get("data", {}).get("src_ip") or "").strip() for a in wazuh}
-        unique_ips.discard("")
-        wazuh_ioc_count = len(unique_ips)
-    except Exception:
-        wazuh_ioc_count = 0
+    wazuh_ioc_count = 0
+    if ws_enabled:
+        try:
+            wazuh = await get_recent_alerts(size=1200, min_level=1)
+            unique_ips = {str(a.get("data", {}).get("src_ip") or "").strip() for a in wazuh}
+            unique_ips.discard("")
+            wazuh_ioc_count = len(unique_ips)
+        except Exception:
+            pass
 
-    try:
-        ai_alerts = await get_ai_anomaly_alerts(size=600)
-        ai_ioc_count = len({str(a.get("src_ip") or "").strip() for a in ai_alerts} - {""})
-    except Exception:
-        ai_ioc_count = 0
+    ai_ioc_count = 0
+    if ai_enabled:
+        try:
+            ai_alerts = await get_ai_anomaly_alerts(size=600)
+            ai_ioc_count = len({str(a.get("src_ip") or "").strip() for a in ai_alerts} - {""})
+        except Exception:
+            pass
 
     return [
         {
             "feed_id": "abuseipdb",
             "ten": "AbuseIPDB",
             "icon": "🛡",
-            "mo_ta": "IP reputation database",
+            "mo_ta": abuse_cfg.get("description", "IP reputation database"),
             "trang_thai": "ket_noi" if abuseipdb_ok else "ngat",
             "ioc_count": len(_ABUSEIPDB_CACHE) if abuseipdb_ok else 0,
-            "cap_nhat": "Thời gian thực (cache 1h)" if abuseipdb_ok else "Chưa có API key",
+            "cap_nhat": f"Thời gian thực (cache {abuse_cfg.get('cache_ttl', 3600) // 60}m)" if abuseipdb_ok else "Chưa có API key",
+            "enabled": abuse_enabled,
         },
         {
             "feed_id": "wazuh_suricata",
             "ten": "Wazuh + Suricata",
             "icon": "⚡",
-            "mo_ta": "IDS/HIDS alerts feed",
-            "trang_thai": "ket_noi",
+            "mo_ta": ws_cfg.get("description", "IDS/HIDS alerts feed"),
+            "trang_thai": "ket_noi" if ws_enabled else "ngat",
             "ioc_count": wazuh_ioc_count,
-            "cap_nhat": "Tự động (mỗi 10s)",
+            "cap_nhat": f"Tự động (mỗi {ws_interval}s)" if ws_enabled else "Đã tắt",
+            "enabled": ws_enabled,
         },
         {
             "feed_id": "ai_engine",
             "ten": "AI Engine",
             "icon": "🤖",
-            "mo_ta": "Anomaly detection từ AI",
-            "trang_thai": "ket_noi",
+            "mo_ta": ai_cfg.get("description", "Anomaly detection từ AI"),
+            "trang_thai": "ket_noi" if ai_enabled else "ngat",
             "ioc_count": ai_ioc_count,
-            "cap_nhat": "Tự động (mỗi 60s)",
+            "cap_nhat": f"Tự động (mỗi {ai_interval}s)" if ai_enabled else "Đã tắt",
+            "enabled": ai_enabled,
         },
         {
             "feed_id": "virustotal",
             "ten": "VirusTotal",
             "icon": "🔬",
-            "mo_ta": "File & URL scanner",
-            "trang_thai": "ngat",
+            "mo_ta": vt_cfg.get("description", "File & URL scanner"),
+            "trang_thai": "ket_noi" if vt_ok else "ngat",
             "ioc_count": 0,
-            "cap_nhat": "Chưa kết nối",
+            "cap_nhat": "Thời gian thực" if vt_ok else ("Chưa có API key" if not vt_key else "Đã tắt"),
+            "enabled": vt_enabled,
         },
     ]
 
