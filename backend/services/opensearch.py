@@ -14,12 +14,57 @@ Real field structure from wazuh-alerts-4.x-*:
          rule.mitre.id, rule.mitre.tactic  (on HIDS alerts)
 """
 import logging
+import re
 
 import httpx
 from config import get_settings
 
 cfg = get_settings()
 log = logging.getLogger(__name__)
+
+_IPV4_RE = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
+_SRC_PATTERNS = (
+    re.compile(r"\brhost=(?P<ip>(?:\d{1,3}\.){3}\d{1,3})\b", re.IGNORECASE),
+    re.compile(r"\bsrc[_ ]?ip[:= ]+(?P<ip>(?:\d{1,3}\.){3}\d{1,3})\b", re.IGNORECASE),
+    re.compile(r"\bfrom\s+(?P<ip>(?:\d{1,3}\.){3}\d{1,3})\b", re.IGNORECASE),
+)
+
+
+def _looks_like_ipv4(value: str) -> bool:
+    parts = str(value or "").split(".")
+    if len(parts) != 4:
+        return False
+    try:
+        return all(0 <= int(part) <= 255 for part in parts)
+    except ValueError:
+        return False
+
+
+def _extract_src_ip_from_text(text: str) -> str:
+    raw = str(text or "")
+    for pattern in _SRC_PATTERNS:
+        match = pattern.search(raw)
+        if match:
+            ip = match.group("ip")
+            if _looks_like_ipv4(ip):
+                return ip
+    return ""
+
+
+def _enrich_alert_src_ip(alert: dict) -> dict:
+    row = dict(alert or {})
+    data = dict(row.get("data") or {})
+
+    src_ip = str(data.get("src_ip") or data.get("srcip") or "").strip()
+    if not src_ip:
+        src_ip = _extract_src_ip_from_text(row.get("full_log") or "")
+    if not src_ip:
+        src_ip = _extract_src_ip_from_text(row.get("location") or "")
+
+    if src_ip:
+        data["src_ip"] = src_ip
+        row["data"] = data
+    return row
 
 
 def _client() -> httpx.AsyncClient:
@@ -64,7 +109,7 @@ async def get_recent_alerts(size: int = 5000, min_level: int = 1) -> list[dict]:
             "rule.id", "rule.level", "rule.description",
             "rule.groups", "rule.firedtimes",
             "rule.mitre.id", "rule.mitre.tactic",
-            "data.src_ip", "data.dest_ip",
+            "data.src_ip", "data.srcip", "data.dest_ip",
             "data.src_port", "data.dest_port",
             "data.proto", "data.event_type",
             "data.alert.signature", "data.alert.severity",
@@ -75,7 +120,7 @@ async def get_recent_alerts(size: int = 5000, min_level: int = 1) -> list[dict]:
         ],
     }
     result = await _search(cfg.index_wazuh_alerts, body)
-    return [h["_source"] for h in result.get("hits", {}).get("hits", [])]
+    return [_enrich_alert_src_ip(h["_source"]) for h in result.get("hits", {}).get("hits", [])]
 
 
 async def get_suricata_alerts(size: int = 100) -> list[dict]:
