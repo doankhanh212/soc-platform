@@ -401,7 +401,11 @@ def block_ip(ip: str, reason: str = "AI Engine auto-block") -> dict:
             else {"ssh": "skipped", "target": "agent", "reason": "BLOCK_TARGET_AGENT=false"}
         )
 
-        any_ok = local_ok or ssh_result.get("ssh") == "ok" or agent_result.get("ssh") == "ok"
+        any_ok = (
+            (targets["local"] and local_ok)
+            or (targets["suricata"] and ssh_result.get("ssh") == "ok")
+            or (targets["agent"] and agent_result.get("ssh") == "ok")
+        )
         if not any_ok:
             return {
                 "status": "error",
