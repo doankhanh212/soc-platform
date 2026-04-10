@@ -44,7 +44,7 @@ async def suricata_alerts(size: int = Query(100, ge=1, le=500)):
 
 
 @alerts_router.get("/ai")
-async def ai_alerts(size: int = Query(50, ge=1, le=200)):
+async def ai_alerts(size: int = Query(5000, ge=1)):
     return await get_ai_anomaly_alerts(size=size)
 
 
@@ -188,7 +188,41 @@ async def blocked_count():
 @blocked_router.get("")
 async def blocked_list_endpoint():
     ips = get_blocked_list()
-    return {"ips": ips, "count": len(ips), "log": get_block_log(limit=100)}
+    log_entries = get_block_log(limit=500)
+
+    # Ghép IP + thông tin từ log (thời gian, lý do)
+    # Format thực tế: "[2025-01-01 12:00:00] BLOCK | IP: 1.2.3.4 | Lý do: reason"
+    ip_info: dict[str, dict] = {}
+    for entry in log_entries:
+        line = str(entry)
+        try:
+            # Parse "[ts] ACTION | IP: x.x.x.x | Lý do: reason"
+            ts_end = line.index("]")
+            ts = line[1:ts_end]  # bỏ "[" và "]"
+            rest = line[ts_end + 2:]  # bỏ "] "
+            segments = [s.strip() for s in rest.split("|")]
+            action = segments[0] if len(segments) > 0 else ""
+            ip_part = segments[1] if len(segments) > 1 else ""
+            reason_part = segments[2] if len(segments) > 2 else ""
+            # "IP: 1.2.3.4" → "1.2.3.4"
+            ip_val = ip_part.replace("IP:", "").strip()
+            # "Lý do: xyz" → "xyz"
+            reason_val = reason_part.replace("Lý do:", "").strip()
+            if ip_val and ip_val not in ip_info:
+                ip_info[ip_val] = {"blocked_at": ts, "reason": reason_val, "action": action}
+        except (ValueError, IndexError):
+            continue
+
+    items = []
+    for ip in ips:
+        info = ip_info.get(ip, {})
+        items.append({
+            "ip": ip,
+            "blocked_at": info.get("blocked_at", ""),
+            "reason": info.get("reason", ""),
+        })
+
+    return {"ips": items, "count": len(ips)}
 
 
 @blocked_router.post("")

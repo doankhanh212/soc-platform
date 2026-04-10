@@ -568,24 +568,34 @@ async function toggleIOC(id, element, newState) {
   }
 }
 
-function loadFeedSources() {
+async function loadFeedSources() {
   const panel = document.getElementById('panel-feeds');
   if (!panel) return;
+  panel.innerHTML = '<div style="color:var(--medium);font-size:13px;padding:20px 0">⏳ Đang tải feed...</div>';
 
-  const sources = [
-    { ten: 'AbuseIPDB', icon: '🛡', mo_ta: 'IP reputation database', trang_thai: 'ket_noi', ioc_count: 1247, cap_nhat: '5 phút trước', color: 'var(--green)' },
-    { ten: 'Emerging Threats', icon: '⚡', mo_ta: 'Suricata rule feed', trang_thai: 'ket_noi', ioc_count: 892, cap_nhat: '1 giờ trước', color: 'var(--green)' },
-    { ten: 'AlienVault OTX', icon: '👾', mo_ta: 'Open threat exchange', trang_thai: 'ngat', ioc_count: 0, cap_nhat: 'Chưa kết nối', color: 'var(--muted)' },
-    { ten: 'VirusTotal', icon: '🔬', mo_ta: 'File & URL malware scanner', trang_thai: 'ngat', ioc_count: 0, cap_nhat: 'Chưa kết nối', color: 'var(--muted)' },
-  ];
+  let sources = [];
+  try {
+    const res = await fetch('/api/threatintel/feeds');
+    const data = await res.json();
+    sources = Array.isArray(data) ? data : [];
+  } catch (_) {
+    sources = [];
+  }
+
+  if (!sources.length) {
+    panel.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--muted);font-size:13px">Không có feed nào.</div>';
+    return;
+  }
 
   panel.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
-      ${sources.map((s) => `
-        <div class="ti-card" style="border-color:${s.color}">
+      ${sources.map((s) => {
+        const color = s.trang_thai === 'ket_noi' ? 'var(--green)' : 'var(--muted)';
+        return `
+        <div class="ti-card" data-feed-id="${tiEsc(s.feed_id || '')}" style="border-color:${color}">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
             <div style="display:flex;align-items:center;gap:10px">
-              <span style="font-size:24px">${s.icon}</span>
+              <span style="font-size:24px">${s.icon || '📡'}</span>
               <div>
                 <div style="font-size:14px;font-weight:600;color:var(--text)">${tiEsc(s.ten)}</div>
                 <div style="font-size:11px;color:var(--muted)">${tiEsc(s.mo_ta)}</div>
@@ -598,7 +608,7 @@ function loadFeedSources() {
             </span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-bottom:12px">
-            <span>${s.ioc_count > 0 ? `${s.ioc_count.toLocaleString('vi-VN')} IOC` : 'Chưa đồng bộ'}</span>
+            <span>${s.ioc_count > 0 ? `${Number(s.ioc_count).toLocaleString('vi-VN')} IOC` : 'Chưa đồng bộ'}</span>
             <span>${tiEsc(s.cap_nhat)}</span>
           </div>
           <div style="display:flex;gap:8px">
@@ -606,13 +616,14 @@ function loadFeedSources() {
               ⚙ Cấu hình
             </button>
             ${s.trang_thai === 'ket_noi' ? `
-              <button style="flex:1;padding:6px;background:var(--bg1);border:1px solid var(--green);color:var(--green);border-radius:4px;font-size:11px;cursor:pointer">
+              <button onclick="syncFeed('${tiEsc(s.feed_id || '')}')"
+                style="flex:1;padding:6px;background:var(--bg1);border:1px solid var(--green);color:var(--green);border-radius:4px;font-size:11px;cursor:pointer">
                 🔄 Đồng bộ ngay
               </button>
             ` : ''}
           </div>
         </div>
-      `).join('')}
+      `}).join('')}
     </div>
 
     <div style="margin-top:16px;padding:12px;background:var(--bg1);border:1px solid var(--border-subtle);border-radius:8px;font-size:12px;color:var(--muted)">
@@ -620,6 +631,22 @@ function loadFeedSources() {
       Đăng ký tại <a href="https://www.abuseipdb.com" target="_blank" style="color:var(--green)">abuseipdb.com</a> → lấy API key → cấu hình trong Cài đặt.
     </div>
   `;
+}
+
+async function syncFeed(feedId) {
+  if (!feedId) return;
+  try {
+    const res = await fetch(`/api/threatintel/sync/${encodeURIComponent(feedId)}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      tiNotify(data.message || 'Đã đồng bộ thành công', 'ok');
+      await loadFeedSources();
+    } else {
+      tiNotify(data.message || 'Đồng bộ thất bại', 'warn');
+    }
+  } catch (_) {
+    tiNotify('Không thể kết nối API sync', 'err');
+  }
 }
 
 function formatThoiGianTuongDoi(value) {

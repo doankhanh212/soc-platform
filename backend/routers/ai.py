@@ -64,8 +64,8 @@ async def analyze(event: LogEvent):
 # ══════════════════════════════════════════════════════════════════
 
 @router.get("/alerts")
-async def alerts(limit: int = Query(50, ge=1, le=500)):
-    """Trả về danh sách alerts đã được AI engine phân tích."""
+async def alerts(limit: int = Query(0, ge=0)):
+    """Trả về danh sách alerts đã được AI engine phân tích. limit=0 trả tất cả."""
     return get_analyzed_alerts(limit=limit)
 
 
@@ -118,7 +118,7 @@ async def models_status():
     Trả trạng thái 4 lớp giám sát AI cho UI dashboard.
     """
     try:
-        alerts = await get_ai_anomaly_alerts(size=500)
+        alerts = await get_ai_anomaly_alerts(size=5000)
     except Exception:
         alerts = []
 
@@ -174,20 +174,19 @@ async def models_status():
 
 @router.get("/anomalies")
 async def get_anomalies(
-    limit: int = Query(500, ge=1, le=5000),
+    limit: int = Query(0, ge=0),
     sort: str = Query("risk_desc"),
 ):
     """
     Danh sách anomalies đã enrich cho Explainable panel.
     """
     try:
-        fetch_size = max(int(limit or 0), 800)
-        ai_alerts = await get_ai_anomaly_alerts(size=fetch_size)
+        ai_alerts = await get_ai_anomaly_alerts(size=5000)
     except Exception:
         ai_alerts = []
 
     try:
-        wazuh_alerts = await get_recent_alerts(size=1500, min_level=1)
+        wazuh_alerts = await get_recent_alerts(size=5000, min_level=1)
     except Exception:
         wazuh_alerts = []
 
@@ -274,7 +273,7 @@ async def get_anomalies(
     if sort == "risk_desc":
         out.sort(key=lambda x: float(x.get("diem_rui_ro", 0)), reverse=True)
 
-    return out[:limit]
+    return out if limit <= 0 else out[:limit]
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -339,7 +338,7 @@ async def test_pipeline():
 @router.get("/engine-stats")
 async def engine_stats():
     """4 monitor cards + summary stats cho trang Động cơ AI."""
-    alerts   = get_analyzed_alerts(limit=500)
+    alerts   = get_analyzed_alerts(limit=0)
     base     = get_ai_stats()
     buckets: dict[str, list[float]] = {"isolation_forest": [], "ewma": [], "cusum": []}
     total_anomalies = 0

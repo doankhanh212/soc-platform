@@ -26,7 +26,7 @@ cfg = get_settings()
 
 # ── Lịch sử phân tích (in-memory ring buffer) ────────────────────
 _history: list[dict] = []
-_MAX_HISTORY = 500
+_MAX_HISTORY = 5000
 AUTO_BLOCK_BASE_THRESHOLD = 0.70
 AUTO_BLOCK_COMBINED_RISK = 0.65
 AUTO_BLOCK_COMBINED_ALERTS_1H = 1000
@@ -315,8 +315,10 @@ async def analyze_batch() -> list[dict]:
 # QUERY — dùng cho GET endpoints
 # ══════════════════════════════════════════════════════════════════
 
-def get_analyzed_alerts(limit: int = 100) -> list[dict]:
-    """Trả về danh sách alerts đã phân tích (mới nhất trước)."""
+def get_analyzed_alerts(limit: int = 0) -> list[dict]:
+    """Trả về danh sách alerts đã phân tích (mới nhất trước). limit=0 trả tất cả."""
+    if limit <= 0:
+        return list(reversed(_history))
     return list(reversed(_history[-limit:]))
 
 

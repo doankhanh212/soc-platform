@@ -127,7 +127,7 @@
 
   async function fetchAIAlerts() {
     try {
-      const res = await fetch('/api/alerts/ai?size=100');
+      const res = await fetch('/api/alerts/ai');
       if (!res.ok) throw new Error('fetch_ai_alerts_failed');
       return await res.json();
     } catch (_error) {
@@ -137,7 +137,7 @@
 
   async function fetchAIAnomalies(limit = 500) {
     try {
-      const res = await fetch(`/api/ai/anomalies?limit=${limit}&sort=risk_desc`);
+      const res = await fetch(`/api/ai/anomalies?sort=risk_desc`);
       if (!res.ok) throw new Error('fetch_ai_anomalies_failed');
       return normalizeAnomalyPayload(await res.json());
     } catch (_error) {

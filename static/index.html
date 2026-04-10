@@ -137,6 +137,11 @@
       <span class="nav-icon">🤖</span>
       <span class="nav-label">Động cơ AI</span>
     </div>
+    <div class="nav-item" data-page="blocked-ips">
+      <span class="nav-icon">🚫</span>
+      <span class="nav-label">IP bị chặn</span>
+      <span class="nav-badge" id="nav-badge-blocked">0</span>
+    </div>
   </nav>
 
   <div id="sidebar-bottom">
@@ -1114,6 +1119,45 @@
   </div>
 </div>
 
+<div id="page-blocked-ips" class="page">
+  <div style="padding:20px 24px;min-height:100%">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <div>
+        <h2 style="color:var(--green);font-size:20px;font-weight:600;margin:0">IP bị chặn</h2>
+        <p style="color:var(--muted);font-size:13px;margin:4px 0 0">
+          Tổng: <strong id="blocked-ip-count" style="color:var(--text)">0</strong> IP đang bị chặn trong iptables
+        </p>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="blocked-ip-filter" type="text" placeholder="Lọc IP hoặc lý do..."
+          oninput="window.blockedIpsPage.filterIPs()"
+          style="padding:8px 12px;background:var(--bg1);border:1px solid var(--border-subtle);
+                 color:var(--text);border-radius:6px;font-size:13px;outline:none;width:220px">
+        <button onclick="window.blockedIpsPage.refresh()"
+          style="padding:8px 16px;background:var(--bg1);border:1px solid var(--green);color:var(--green);
+                 border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap">
+          🔄 Tải lại
+        </button>
+      </div>
+    </div>
+    <div class="card">
+      <table id="blocked-ip-table" style="width:100%;border-collapse:collapse;font-size:13px">
+        <thead>
+          <tr style="color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-size:10px">
+            <th style="padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)">Địa chỉ IP</th>
+            <th style="padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)">Thời gian chặn</th>
+            <th style="padding:10px 12px;text-align:left;border-bottom:1px solid var(--border)">Lý do</th>
+            <th style="padding:10px 12px;text-align:center;border-bottom:1px solid var(--border)">Hành động</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px">Đang tải...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
 <div id="page-settings" class="page">
   <div style="max-width:900px">
 
@@ -1425,6 +1469,7 @@
 <script src="js/ai-engine.js"></script>
 <script src="js/soar.js"></script>
 <script src="js/block_ip.js"></script>
+<script src="js/blocked_ips_page.js"></script>
 <script>
 // ══ INTEGRATION BRIDGE ══════════════════════════════════════════
 // Cleanup: legacy integration bridge removed. app.js already integrates confirmBlockIP directly.

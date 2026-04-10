@@ -115,6 +115,7 @@ function navigate(page) {
     'hunting':      ['Threat Hunting', 'Truy vết nâng cao'],
     'soar':         ['SOAR Playbook', 'Điều phối và phản ứng tự động'],
     'ai':           ['Động cơ AI', 'Phát hiện bất thường'],
+    'blocked-ips':  ['IP bị chặn', 'Quản lý danh sách chặn'],
     'settings':     ['Cài đặt', 'Hệ thống'],
   };
   const [title, sub] = titles[page] || [page, ''];
@@ -131,6 +132,9 @@ function navigate(page) {
   }
   if(page === 'ai' && window.aiEngineApp && typeof window.aiEngineApp.onPageActive === 'function') {
     window.aiEngineApp.onPageActive();
+  }
+  if(page === 'blocked-ips' && window.blockedIpsPage && typeof window.blockedIpsPage.onPageActive === 'function') {
+    window.blockedIpsPage.onPageActive();
   }
 }
 window.navigate = navigate;
@@ -583,6 +587,11 @@ async function fullRefresh(){
       notif.textContent = kpis.critical_alerts || 0;
       notif.style.display = (kpis.critical_alerts || 0) > 0 ? 'block' : 'none';
     }
+    // Update blocked IPs badge
+    fetch('/api/blocked-ips/count').then(r=>r.json()).then(d=>{
+      const b = document.getElementById('nav-badge-blocked');
+      if(b) b.textContent = d.count || 0;
+    }).catch(()=>{});
     toast('Đã làm mới','ok',1500);
   } catch(e){ toast('Lỗi làm mới: '+e.message,'err'); }
 }

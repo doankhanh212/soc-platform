@@ -240,39 +240,6 @@ async def ioc_list(limit: int = Query(100, ge=1, le=500)):
             "da_kich_hoat": agg["count"] >= 3,
         })
 
-    rows.extend([
-        {
-            "ioc_id": "IOC-D01",
-            "loai": "domain",
-            "gia_tri": "malicious-control.example",
-            "muc_do": "trung_binh",
-            "mo_ta": "Domain điều khiển nghi vấn",
-            "nguon": "Threat Feed",
-            "lan_cuoi": datetime.now(tz=timezone.utc).isoformat().replace("+00:00", "Z"),
-            "da_kich_hoat": False,
-        },
-        {
-            "ioc_id": "IOC-H01",
-            "loai": "hash",
-            "gia_tri": "6f5902ac237024bdd0c176cb93063dc4",
-            "muc_do": "cao",
-            "mo_ta": "Hash file nghi ngờ mã độc",
-            "nguon": "VirusTotal",
-            "lan_cuoi": datetime.now(tz=timezone.utc).isoformat().replace("+00:00", "Z"),
-            "da_kich_hoat": True,
-        },
-        {
-            "ioc_id": "IOC-U01",
-            "loai": "url",
-            "gia_tri": "http://suspicious.example/login.php",
-            "muc_do": "thap",
-            "mo_ta": "URL đáng theo dõi",
-            "nguon": "Analyst",
-            "lan_cuoi": datetime.now(tz=timezone.utc).isoformat().replace("+00:00", "Z"),
-            "da_kich_hoat": False,
-        },
-    ])
-
     return rows[:limit]
 
 
@@ -280,8 +247,25 @@ async def ioc_list(limit: int = Query(100, ge=1, le=500)):
 async def feed_sources():
     s = get_settings()
     abuseipdb_ok = bool(s.abuseipdb_api_key)
+
+    # Đếm IOC thật từ OpenSearch
+    try:
+        wazuh = await get_recent_alerts(size=1200, min_level=1)
+        unique_ips = {str(a.get("data", {}).get("src_ip") or "").strip() for a in wazuh}
+        unique_ips.discard("")
+        wazuh_ioc_count = len(unique_ips)
+    except Exception:
+        wazuh_ioc_count = 0
+
+    try:
+        ai_alerts = await get_ai_anomaly_alerts(size=600)
+        ai_ioc_count = len({str(a.get("src_ip") or "").strip() for a in ai_alerts} - {""})
+    except Exception:
+        ai_ioc_count = 0
+
     return [
         {
+            "feed_id": "abuseipdb",
             "ten": "AbuseIPDB",
             "icon": "🛡",
             "mo_ta": "IP reputation database",
@@ -290,22 +274,25 @@ async def feed_sources():
             "cap_nhat": "Thời gian thực (cache 1h)" if abuseipdb_ok else "Chưa có API key",
         },
         {
-            "ten": "Emerging Threats",
+            "feed_id": "wazuh_suricata",
+            "ten": "Wazuh + Suricata",
             "icon": "⚡",
-            "mo_ta": "Suricata rule feed",
+            "mo_ta": "IDS/HIDS alerts feed",
             "trang_thai": "ket_noi",
-            "ioc_count": 892,
-            "cap_nhat": "1 giờ trước",
+            "ioc_count": wazuh_ioc_count,
+            "cap_nhat": "Tự động (mỗi 10s)",
         },
         {
-            "ten": "AlienVault OTX",
-            "icon": "👽",
-            "mo_ta": "Open threat exchange",
-            "trang_thai": "ngat",
-            "ioc_count": 0,
-            "cap_nhat": "Chưa kết nối",
+            "feed_id": "ai_engine",
+            "ten": "AI Engine",
+            "icon": "🤖",
+            "mo_ta": "Anomaly detection từ AI",
+            "trang_thai": "ket_noi",
+            "ioc_count": ai_ioc_count,
+            "cap_nhat": "Tự động (mỗi 60s)",
         },
         {
+            "feed_id": "virustotal",
             "ten": "VirusTotal",
             "icon": "🔬",
             "mo_ta": "File & URL scanner",
@@ -314,6 +301,17 @@ async def feed_sources():
             "cap_nhat": "Chưa kết nối",
         },
     ]
+
+
+@router.post("/sync/{feed_id}")
+async def sync_feed(feed_id: str):
+    """Kích hoạt đồng bộ lại dữ liệu từ feed source."""
+    if feed_id == "abuseipdb":
+        _ABUSEIPDB_CACHE.clear()
+        return {"ok": True, "message": "Đã xóa cache AbuseIPDB, lần tra cứu tiếp sẽ lấy dữ liệu mới"}
+    if feed_id in ("wazuh_suricata", "ai_engine"):
+        return {"ok": True, "message": f"Feed {feed_id} tự đồng bộ liên tục, không cần sync thủ công"}
+    return {"ok": False, "message": f"Feed '{feed_id}' chưa được hỗ trợ"}
 
 
 async def _load_threatintel_data() -> tuple[list[dict], list[dict]]:

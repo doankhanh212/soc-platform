@@ -5,7 +5,7 @@ Tính năng:
   • Cache IP đã block (in-memory)  → tránh block trùng
   • Log file ghi lại: IP, thời gian, lý do
   • Validate + whitelist IP nội bộ
-  • Hỗ trợ block REMOTE qua SSH sang VPS Suricata
+  • Hỗ trợ block REMOTE qua SSH sang VPS Suricata + VPS Agent
 """
 import logging
 import ipaddress
@@ -29,7 +29,7 @@ _LOG_FILE = _DATA_DIR / "blocked_ips.log"
 _blocked: set[str] = set()
 _lock = Lock()
 
-_WHITELIST = frozenset({
+_WHITELIST_STATIC = frozenset({
     "127.0.0.1", "0.0.0.0", "::1", "10.0.0.1",
     # ── VPS IPs — KHÔNG BAO GIỜ tự block ────────────────────────
     "103.98.152.207",   # VPS Dashboard (whmcs167530)
@@ -37,6 +37,56 @@ _WHITELIST = frozenset({
     # ── IP quản trị SSH — tránh lockout ─────────────────────────
     "115.78.15.163",    # Admin IP
 })
+
+
+def _parse_ip_list(raw: str) -> set[str]:
+    out: set[str] = set()
+    for item in str(raw or "").split(","):
+        candidate = item.strip()
+        if candidate and _valid(candidate):
+            out.add(candidate)
+    return out
+
+
+def _get_whitelist() -> frozenset[str]:
+    """Whitelist = static IPs + VPS IPs từ config (agent_vps_host, v.v.)."""
+    from config import get_settings
+    s = get_settings()
+    extra = set()
+    for host in (s.suricata_vps_host, s.agent_vps_host):
+        h = str(host or "").strip()
+        if h:
+            extra.add(h)
+    extra.update(_parse_ip_list(s.admin_whitelist_ips))
+    if extra:
+        return _WHITELIST_STATIC | frozenset(extra)
+    return _WHITELIST_STATIC
+
+
+def _build_remote_safe_command(ip: str, action: str, chain: str, protected_port: int) -> str:
+    from config import get_settings
+
+    s = get_settings()
+    ssh_port = int(protected_port or 22)
+    commands = [
+        f"{_IPTABLES} -N {chain} 2>/dev/null || true",
+        f"{_IPTABLES} -C INPUT -j {chain} 2>/dev/null || {_IPTABLES} -I INPUT 1 -j {chain}",
+    ]
+
+    for safe_ip in sorted(_parse_ip_list(s.admin_whitelist_ips)):
+        commands.append(
+            f"{_IPTABLES} -C {chain} -p tcp -s {safe_ip} --dport {ssh_port} -j ACCEPT 2>/dev/null || "
+            f"{_IPTABLES} -I {chain} 1 -p tcp -s {safe_ip} --dport {ssh_port} -j ACCEPT"
+        )
+
+    if action == "block":
+        commands.append(
+            f"{_IPTABLES} -C {chain} -s {ip} -j DROP 2>/dev/null || {_IPTABLES} -I {chain} -s {ip} -j DROP"
+        )
+    else:
+        commands.append(f"{_IPTABLES} -D {chain} -s {ip} -j DROP 2>/dev/null || true")
+
+    return " ; ".join(commands)
 
 
 def _valid(ip: str) -> bool:
@@ -48,7 +98,8 @@ def _valid(ip: str) -> bool:
 
 
 def _private(ip: str) -> bool:
-    if ip in _WHITELIST:
+    wl = _get_whitelist()
+    if ip in wl:
         return True
     try:
         addr = ipaddress.ip_address(ip)
@@ -65,14 +116,77 @@ def _private(ip: str) -> bool:
 
 
 def _iptables_rule_exists(ip: str) -> bool:
-    try:
-        result = subprocess.run(
-            [_IPTABLES, "-C", "INPUT", "-s", ip, "-j", "DROP"],
+    from config import get_settings
+
+    s = get_settings()
+    chains = [s.local_iptables_chain, "INPUT"]
+    for chain in chains:
+        try:
+            result = subprocess.run(
+                [_IPTABLES, "-C", chain, "-s", ip, "-j", "DROP"],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0:
+                return True
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+    return False
+
+
+def _ensure_local_safe_chain(chain: str, protected_port: int) -> None:
+    from config import get_settings
+
+    s = get_settings()
+    subprocess.run([_IPTABLES, "-N", chain], capture_output=True, text=True, timeout=5)
+    jump_exists = subprocess.run(
+        [_IPTABLES, "-C", "INPUT", "-j", chain],
+        capture_output=True, text=True, timeout=5,
+    )
+    if jump_exists.returncode != 0:
+        subprocess.run(
+            [_IPTABLES, "-I", "INPUT", "1", "-j", chain],
+            capture_output=True, text=True, timeout=5,
+            check=False,
+        )
+
+    for safe_ip in sorted(_parse_ip_list(s.admin_whitelist_ips)):
+        rule_exists = subprocess.run(
+            [_IPTABLES, "-C", chain, "-p", "tcp", "-s", safe_ip, "--dport", str(protected_port), "-j", "ACCEPT"],
             capture_output=True, text=True, timeout=5,
         )
-        return result.returncode == 0
+        if rule_exists.returncode != 0:
+            subprocess.run(
+                [_IPTABLES, "-I", chain, "1", "-p", "tcp", "-s", safe_ip, "--dport", str(protected_port), "-j", "ACCEPT"],
+                capture_output=True, text=True, timeout=5,
+                check=False,
+            )
+
+
+def _load_drop_rules_from_chain(chain: str) -> list[str]:
+    try:
+        result = subprocess.run(
+            [_IPTABLES, "-S", chain],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode != 0:
+            return []
+        found: list[str] = []
+        for line in result.stdout.splitlines():
+            parts = line.split()
+            if not parts or parts[0] != "-A":
+                continue
+            if "-s" not in parts or "-j" not in parts:
+                continue
+            try:
+                target = parts[parts.index("-j") + 1]
+                source_ip = parts[parts.index("-s") + 1]
+            except (ValueError, IndexError):
+                continue
+            if target == "DROP" and _valid(source_ip) and not _private(source_ip):
+                found.append(source_ip)
+        return found
     except (FileNotFoundError, subprocess.TimeoutExpired):
-        return False
+        return []
 
 
 def _ssh_block(ip: str, action: str, chain: str) -> dict:
@@ -84,21 +198,49 @@ def _ssh_block(ip: str, action: str, chain: str) -> dict:
     from config import get_settings
     s = get_settings()
     if not s.suricata_vps_host:
-        # Không cấu hình SSH → skip, không lỗi
         return {"ssh": "skipped", "reason": "SURICATA_VPS_HOST chưa được cấu hình"}
+    return _ssh_block_remote(
+        ip, action, chain,
+        host=s.suricata_vps_host,
+        user=s.suricata_vps_user,
+        key=s.suricata_vps_key,
+        port=s.suricata_vps_port,
+        label="suricata",
+    )
 
-    if action == "block":
-        cmd = f"{_IPTABLES} -I {chain} -s {ip} -j DROP"
-    else:
-        cmd = f"{_IPTABLES} -D {chain} -s {ip} -j DROP"
+
+def _ssh_block_agent(ip: str, action: str) -> dict:
+    """
+    Chạy iptables trên VPS Agent (nơi bị tấn công) qua SSH.
+    """
+    from config import get_settings
+    s = get_settings()
+    if not s.agent_vps_host:
+        return {"ssh": "skipped", "reason": "AGENT_VPS_HOST chưa được cấu hình"}
+    return _ssh_block_remote(
+        ip, action, s.agent_iptables_chain,
+        host=s.agent_vps_host,
+        user=s.agent_vps_user,
+        key=s.agent_vps_key,
+        port=s.agent_vps_port,
+        label="agent",
+    )
+
+
+def _ssh_block_remote(
+    ip: str, action: str, chain: str,
+    *, host: str, user: str, key: str, port: int, label: str,
+) -> dict:
+    """Chạy iptables trên remote VPS qua SSH (dùng chung cho cả Suricata và Agent)."""
+    cmd = _build_remote_safe_command(ip, action, chain, protected_port=port)
 
     ssh_cmd = [
         _SSH,
-        "-i", s.suricata_vps_key,
+        "-i", key,
         "-o", "StrictHostKeyChecking=no",
         "-o", "ConnectTimeout=8",
-        "-p", str(s.suricata_vps_port),
-        f"{s.suricata_vps_user}@{s.suricata_vps_host}",
+        "-p", str(port),
+        f"{user}@{host}",
         cmd,
     ]
     try:
@@ -106,39 +248,35 @@ def _ssh_block(ip: str, action: str, chain: str) -> dict:
             ssh_cmd, capture_output=True, text=True, timeout=5
         )
         if result.returncode == 0:
-            return {"ssh": "ok", "host": s.suricata_vps_host}
+            return {"ssh": "ok", "host": host, "target": label}
         return {
             "ssh": "error",
-            "host": s.suricata_vps_host,
+            "host": host,
+            "target": label,
             "stderr": result.stderr.strip(),
         }
     except subprocess.TimeoutExpired:
-        return {"ssh": "timeout", "host": s.suricata_vps_host}
+        return {"ssh": "timeout", "host": host, "target": label}
     except Exception as e:
-        return {"ssh": "error", "detail": str(e)}
+        return {"ssh": "error", "target": label, "detail": str(e)}
 
 
 def load_blocked_from_iptables() -> int:
     """Đọc lại danh sách IP đang bị DROP từ iptables vào cache khi khởi động."""
+    from config import get_settings
+
     try:
-        result = subprocess.run(
-            [_IPTABLES, "-L", "INPUT", "-n"],
-            capture_output=True, text=True, timeout=10,
-        )
+        s = get_settings()
         loaded = 0
-        for line in result.stdout.splitlines():
-            parts = line.split()
-            # Dòng DROP thường có dạng: DROP  all  --  <ip>  0.0.0.0/0
-            if len(parts) >= 4 and parts[0] == "DROP":
-                ip_candidate = parts[3]
-                try:
-                    ipaddress.ip_address(ip_candidate)
-                    if not _private(ip_candidate):
-                        with _lock:
-                            _blocked.add(ip_candidate)
-                        loaded += 1
-                except ValueError:
-                    pass
+        seen: set[str] = set()
+        for chain in ("INPUT", s.local_iptables_chain):
+            for ip_candidate in _load_drop_rules_from_chain(chain):
+                if ip_candidate in seen:
+                    continue
+                with _lock:
+                    _blocked.add(ip_candidate)
+                seen.add(ip_candidate)
+                loaded += 1
         log.info("Loaded %d blocked IPs from iptables into cache", loaded)
         return loaded
     except Exception as e:
@@ -174,7 +312,7 @@ def _write_log(ip: str, action: str, reason: str):
 
 def block_ip(ip: str, reason: str = "AI Engine auto-block") -> dict:
     """
-    Chặn IP bằng iptables -A INPUT -s <ip> -j DROP.
+    Chặn IP bằng chain an toàn AI_BLOCK rồi mới DROP theo source IP.
 
     • Kiểm tra IP hợp lệ
     • Không block IP nội bộ / whitelisted
@@ -200,16 +338,32 @@ def block_ip(ip: str, reason: str = "AI Engine auto-block") -> dict:
     s = get_settings()
 
     try:
-        # 1. Block trên LOCAL (VPS dashboard / management)
-        result = subprocess.run(
-            [_IPTABLES, "-I", "INPUT", "-s", ip, "-j", "DROP"],
+        # 1. Block trên LOCAL (VPS dashboard / management) qua safe chain
+        _ensure_local_safe_chain(s.local_iptables_chain, int(s.ssh_protected_port or 22))
+        subprocess.run(
+            [_IPTABLES, "-C", s.local_iptables_chain, "-s", ip, "-j", "DROP"],
             capture_output=True, text=True, timeout=5,
         )
-        local_ok = result.returncode == 0
-        local_err = result.stderr.strip() if not local_ok else ""
+        result = subprocess.run(
+            [_IPTABLES, "-C", s.local_iptables_chain, "-s", ip, "-j", "DROP"],
+            capture_output=True, text=True, timeout=5,
+        )
+        if result.returncode == 0:
+            local_ok = True
+            local_err = ""
+        else:
+            insert_result = subprocess.run(
+                [_IPTABLES, "-I", s.local_iptables_chain, "-s", ip, "-j", "DROP"],
+                capture_output=True, text=True, timeout=5,
+            )
+            local_ok = insert_result.returncode == 0
+            local_err = insert_result.stderr.strip() if not local_ok else ""
 
         # 2. Block trên VPS Suricata (nơi traffic thực sự đi vào)
         ssh_result = _ssh_block(ip, "block", s.suricata_iptables_chain)
+
+        # 3. Block trên VPS Agent (nơi bị tấn công)
+        agent_result = _ssh_block_agent(ip, "block")
 
         if not local_ok and ssh_result.get("ssh") not in ("ok", "skipped"):
             return {
@@ -230,6 +384,7 @@ def block_ip(ip: str, reason: str = "AI Engine auto-block") -> dict:
             "timestamp":  time.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "local":      "ok" if local_ok else f"warn: {local_err}",
             "suricata_vps": ssh_result,
+            "agent_vps": agent_result,
         }
 
     except FileNotFoundError:
@@ -256,12 +411,19 @@ def unblock_ip(ip: str) -> dict:
 
     try:
         result = subprocess.run(
+            [_IPTABLES, "-D", s.local_iptables_chain, "-s", ip, "-j", "DROP"],
+            capture_output=True, text=True, timeout=5,
+        )
+        legacy_result = subprocess.run(
             [_IPTABLES, "-D", "INPUT", "-s", ip, "-j", "DROP"],
             capture_output=True, text=True, timeout=5,
         )
-        local_ok = result.returncode == 0
+        local_ok = result.returncode == 0 or legacy_result.returncode == 0
 
         ssh_result = _ssh_block(ip, "unblock", s.suricata_iptables_chain)
+
+        # Unblock trên VPS Agent
+        agent_result = _ssh_block_agent(ip, "unblock")
 
         with _lock:
             _blocked.discard(ip)
@@ -272,8 +434,9 @@ def unblock_ip(ip: str) -> dict:
             "status": "unblocked",
             "ip": ip,
             "message": f"Đã bỏ chặn {ip}",
-            "local": "ok" if local_ok else f"warn: {result.stderr.strip()}",
+            "local": "ok" if local_ok else f"warn: {(result.stderr or legacy_result.stderr).strip()}",
             "suricata_vps": ssh_result,
+            "agent_vps": agent_result,
         }
 
     except FileNotFoundError:

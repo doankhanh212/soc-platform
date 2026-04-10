@@ -46,7 +46,7 @@ async def _index_document(index: str, body: dict) -> None:
 
 # ─── ALERTS ───────────────────────────────────────────────────────
 
-async def get_recent_alerts(size: int = 100, min_level: int = 1) -> list[dict]:
+async def get_recent_alerts(size: int = 5000, min_level: int = 1) -> list[dict]:
     body = {
         "size": size,
         "sort": [{"@timestamp": {"order": "desc"}}],
@@ -108,7 +108,7 @@ async def get_suricata_alerts(size: int = 100) -> list[dict]:
     return [h["_source"] for h in result.get("hits", {}).get("hits", [])]
 
 
-async def get_ai_anomaly_alerts(size: int = 50) -> list[dict]:
+async def get_ai_anomaly_alerts(size: int = 5000) -> list[dict]:
     body = {
         "size": size,
         "sort": [{"@timestamp": {"order": "desc"}}],
