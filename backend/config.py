@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     suricata_vps_port: int = 22
     # chain iptables trên VPS Suricata (nếu có AI_BLOCK chain dùng tên đó)
     suricata_iptables_chain: str = "AI_BLOCK"  # hoặc "INPUT"
+    # Demo safety: chỉ bật target thật sự cần block.
+    block_target_local: bool = False
+    block_target_suricata: bool = False
+    block_target_agent: bool = True
     # Port SSH của VPS đang chạy service này (VPS Wazuh/AI local).
     # Trong mô hình hiện tại: Wazuh/AI = 22, Agent = 2222.
     ssh_protected_port: int = 22

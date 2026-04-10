@@ -108,7 +108,9 @@ async def _block_ip_core(ip: str, reason: str = "Manual block"):
             "status": result["status"],
             "ip": ip,
             "message": result.get("message", ""),
+            "local": result.get("local"),
             "suricata_vps": result.get("suricata_vps"),
+            "agent_vps": result.get("agent_vps"),
         }
     return JSONResponse({"success": False, "message": result.get("message", "Lỗi block IP")}, status_code=500)
 
@@ -146,8 +148,15 @@ async def unblock_ip_route(ip: str = Query(...)):
 
     result = await run_in_threadpool(fw_unblock, ip)
     if result["status"] in ("unblocked", "already_unblocked"):
-        return {"success": True, "status": result["status"], "ip": ip,
-                "message": result.get("message", ""), "suricata_vps": result.get("suricata_vps")}
+        return {
+            "success": True,
+            "status": result["status"],
+            "ip": ip,
+            "message": result.get("message", ""),
+            "local": result.get("local"),
+            "suricata_vps": result.get("suricata_vps"),
+            "agent_vps": result.get("agent_vps"),
+        }
     return JSONResponse({"success": False, "message": result.get("message", "Lỗi unblock")}, status_code=500)
 
 

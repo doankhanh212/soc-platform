@@ -63,6 +63,21 @@ def _get_whitelist() -> frozenset[str]:
     return _WHITELIST_STATIC
 
 
+def _target_flags() -> dict[str, bool]:
+    from config import get_settings
+
+    s = get_settings()
+    return {
+        "local": bool(s.block_target_local),
+        "suricata": bool(s.block_target_suricata),
+        "agent": bool(s.block_target_agent),
+    }
+
+
+def _active_target_count() -> int:
+    return sum(1 for enabled in _target_flags().values() if enabled)
+
+
 def _build_remote_safe_command(ip: str, action: str, chain: str, protected_port: int) -> str:
     from config import get_settings
 
@@ -119,6 +134,9 @@ def _iptables_rule_exists(ip: str) -> bool:
     from config import get_settings
 
     s = get_settings()
+    targets = _target_flags()
+    if not targets["local"]:
+        return False
     chains = [s.local_iptables_chain, "INPUT"]
     for chain in chains:
         try:
@@ -267,6 +285,10 @@ def load_blocked_from_iptables() -> int:
 
     try:
         s = get_settings()
+        targets = _target_flags()
+        if not targets["local"]:
+            log.info("Local block target disabled; skip loading iptables cache from local host")
+            return 0
         loaded = 0
         seen: set[str] = set()
         for chain in ("INPUT", s.local_iptables_chain):
@@ -336,39 +358,58 @@ def block_ip(ip: str, reason: str = "AI Engine auto-block") -> dict:
 
     from config import get_settings
     s = get_settings()
+    targets = _target_flags()
+
+    if _active_target_count() == 0:
+        return {"status": "error", "message": "Chưa bật target block nào"}
+    if targets["agent"] and not s.agent_vps_host:
+        return {"status": "error", "message": "BLOCK_TARGET_AGENT=true nhưng AGENT_VPS_HOST chưa được cấu hình"}
 
     try:
         # 1. Block trên LOCAL (VPS dashboard / management) qua safe chain
-        _ensure_local_safe_chain(s.local_iptables_chain, int(s.ssh_protected_port or 22))
-        subprocess.run(
-            [_IPTABLES, "-C", s.local_iptables_chain, "-s", ip, "-j", "DROP"],
-            capture_output=True, text=True, timeout=5,
-        )
-        result = subprocess.run(
-            [_IPTABLES, "-C", s.local_iptables_chain, "-s", ip, "-j", "DROP"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if result.returncode == 0:
-            local_ok = True
-            local_err = ""
-        else:
-            insert_result = subprocess.run(
-                [_IPTABLES, "-I", s.local_iptables_chain, "-s", ip, "-j", "DROP"],
+        if targets["local"]:
+            _ensure_local_safe_chain(s.local_iptables_chain, int(s.ssh_protected_port or 22))
+            result = subprocess.run(
+                [_IPTABLES, "-C", s.local_iptables_chain, "-s", ip, "-j", "DROP"],
                 capture_output=True, text=True, timeout=5,
             )
-            local_ok = insert_result.returncode == 0
-            local_err = insert_result.stderr.strip() if not local_ok else ""
+            if result.returncode == 0:
+                local_ok = True
+                local_err = ""
+            else:
+                insert_result = subprocess.run(
+                    [_IPTABLES, "-I", s.local_iptables_chain, "-s", ip, "-j", "DROP"],
+                    capture_output=True, text=True, timeout=5,
+                )
+                local_ok = insert_result.returncode == 0
+                local_err = insert_result.stderr.strip() if not local_ok else ""
+        else:
+            local_ok = True
+            local_err = "skipped"
 
         # 2. Block trên VPS Suricata (nơi traffic thực sự đi vào)
-        ssh_result = _ssh_block(ip, "block", s.suricata_iptables_chain)
+        ssh_result = (
+            _ssh_block(ip, "block", s.suricata_iptables_chain)
+            if targets["suricata"]
+            else {"ssh": "skipped", "target": "suricata", "reason": "BLOCK_TARGET_SURICATA=false"}
+        )
 
         # 3. Block trên VPS Agent (nơi bị tấn công)
-        agent_result = _ssh_block_agent(ip, "block")
+        agent_result = (
+            _ssh_block_agent(ip, "block")
+            if targets["agent"]
+            else {"ssh": "skipped", "target": "agent", "reason": "BLOCK_TARGET_AGENT=false"}
+        )
 
-        if not local_ok and ssh_result.get("ssh") not in ("ok", "skipped"):
+        any_ok = local_ok or ssh_result.get("ssh") == "ok" or agent_result.get("ssh") == "ok"
+        if not any_ok:
             return {
                 "status": "error",
-                "message": f"Lỗi local: {local_err} | SSH: {ssh_result.get('stderr', 'unknown')}",
+                "message": (
+                    f"Local: {local_err} | "
+                    f"Suricata: {ssh_result.get('stderr') or ssh_result.get('reason', 'unknown')} | "
+                    f"Agent: {agent_result.get('stderr') or agent_result.get('reason', 'unknown')}"
+                ),
             }
 
         with _lock:
@@ -382,7 +423,7 @@ def block_ip(ip: str, reason: str = "AI Engine auto-block") -> dict:
             "message":    f"Đã chặn {ip} thành công",
             "reason":     reason,
             "timestamp":  time.strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "local":      "ok" if local_ok else f"warn: {local_err}",
+            "local":      "ok" if local_err != "skipped" else "skipped",
             "suricata_vps": ssh_result,
             "agent_vps": agent_result,
         }
@@ -402,28 +443,41 @@ def unblock_ip(ip: str) -> dict:
     if not _valid(ip):
         return {"status": "error", "message": f"IP không hợp lệ: {ip}"}
 
-    if not is_blocked(ip):
-        return {"status": "already_unblocked", "ip": ip,
-                "message": f"IP {ip} chưa bị chặn"}
-
     from config import get_settings
     s = get_settings()
+    targets = _target_flags()
+
+    if _active_target_count() == 0:
+        return {"status": "error", "message": "Chưa bật target block nào"}
 
     try:
-        result = subprocess.run(
-            [_IPTABLES, "-D", s.local_iptables_chain, "-s", ip, "-j", "DROP"],
-            capture_output=True, text=True, timeout=5,
-        )
-        legacy_result = subprocess.run(
-            [_IPTABLES, "-D", "INPUT", "-s", ip, "-j", "DROP"],
-            capture_output=True, text=True, timeout=5,
-        )
-        local_ok = result.returncode == 0 or legacy_result.returncode == 0
+        if targets["local"]:
+            result = subprocess.run(
+                [_IPTABLES, "-D", s.local_iptables_chain, "-s", ip, "-j", "DROP"],
+                capture_output=True, text=True, timeout=5,
+            )
+            legacy_result = subprocess.run(
+                [_IPTABLES, "-D", "INPUT", "-s", ip, "-j", "DROP"],
+                capture_output=True, text=True, timeout=5,
+            )
+            local_ok = result.returncode == 0 or legacy_result.returncode == 0
+            local_msg = "ok" if local_ok else f"warn: {(result.stderr or legacy_result.stderr).strip()}"
+        else:
+            local_ok = True
+            local_msg = "skipped"
 
-        ssh_result = _ssh_block(ip, "unblock", s.suricata_iptables_chain)
+        ssh_result = (
+            _ssh_block(ip, "unblock", s.suricata_iptables_chain)
+            if targets["suricata"]
+            else {"ssh": "skipped", "target": "suricata", "reason": "BLOCK_TARGET_SURICATA=false"}
+        )
 
         # Unblock trên VPS Agent
-        agent_result = _ssh_block_agent(ip, "unblock")
+        agent_result = (
+            _ssh_block_agent(ip, "unblock")
+            if targets["agent"]
+            else {"ssh": "skipped", "target": "agent", "reason": "BLOCK_TARGET_AGENT=false"}
+        )
 
         with _lock:
             _blocked.discard(ip)
@@ -434,7 +488,7 @@ def unblock_ip(ip: str) -> dict:
             "status": "unblocked",
             "ip": ip,
             "message": f"Đã bỏ chặn {ip}",
-            "local": "ok" if local_ok else f"warn: {(result.stderr or legacy_result.stderr).strip()}",
+            "local": local_msg,
             "suricata_vps": ssh_result,
             "agent_vps": agent_result,
         }
