@@ -64,6 +64,13 @@ def init_auth_db():
 def _hash(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
+def _get_user_by_username(username: str):
+    with _conn() as c:
+        return c.execute(
+            "SELECT * FROM users WHERE username=?",
+            (username,)
+        ).fetchone()
+
 def login(username: str, password: str) -> Optional[dict]:
     with _conn() as c:
         user = c.execute(
@@ -160,6 +167,29 @@ def delete_user(user_id: int):
     with _conn() as c:
         c.execute("DELETE FROM users WHERE id=? AND username!='admin'",
                   (user_id,))
+
+def change_password(username: str, current_password: str,
+                    new_password: str) -> tuple[bool, str]:
+    user = _get_user_by_username(username)
+    if not user or not user["is_active"]:
+        return False, "Tài khoản không tồn tại hoặc đã bị vô hiệu"
+    if user["password_hash"] != _hash(current_password):
+        return False, "Mật khẩu hiện tại không đúng"
+    if len(new_password or "") < 8:
+        return False, "Mật khẩu mới phải có ít nhất 8 ký tự"
+    if current_password == new_password:
+        return False, "Mật khẩu mới phải khác mật khẩu hiện tại"
+
+    with _conn() as c:
+        c.execute(
+            "UPDATE users SET password_hash=? WHERE username=?",
+            (_hash(new_password), username)
+        )
+        c.execute(
+            "DELETE FROM sessions WHERE username=?",
+            (username,)
+        )
+    return True, "Đổi mật khẩu thành công"
 
 def has_permission(role: str, perm: str) -> bool:
     return perm in PERMISSIONS.get(role, [])

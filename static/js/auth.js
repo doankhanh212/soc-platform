@@ -65,6 +65,7 @@ function _showLogin() {
   document.getElementById('login-username').value      = '';
   document.getElementById('login-password').value      = '';
   document.getElementById('login-error').style.display = 'none';
+  _resetPasswordForm();
 }
 
 function _showApp() {
@@ -109,8 +110,22 @@ function _setCurrentUser(user) {
   const adminCard = document.getElementById('user-mgmt-card');
   if(adminCard) adminCard.style.display = user.role==='admin' ? 'block' : 'none';
 
+  const securityNote = document.getElementById('password-security-note');
+  if(securityNote) {
+    securityNote.textContent = user.username === 'admin'
+      ? 'Nếu tài khoản admin vẫn đang dùng mật khẩu mặc định, hãy đổi ngay trước khi đưa hệ thống ra Internet hoặc test tấn công.'
+      : 'Đổi mật khẩu định kỳ để tránh lộ tài khoản vận hành SOC.';
+  }
+
   // Apply role-based UI restrictions
   _applyPermissions(user.role, user.permissions || []);
+}
+
+function _resetPasswordForm() {
+  ['current-password', 'next-password', 'confirm-next-password'].forEach((id) => {
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+  });
 }
 
 function _applyPermissions(role, permissions) {
@@ -251,6 +266,59 @@ async function deleteUser(userId, username) {
   } catch(e) { window.toast?.('Lỗi: '+e.message,'err'); }
 }
 
+async function changePassword() {
+  const currentPassword = document.getElementById('current-password')?.value || '';
+  const newPassword = document.getElementById('next-password')?.value || '';
+  const confirmPassword = document.getElementById('confirm-next-password')?.value || '';
+
+  if(!currentPassword || !newPassword || !confirmPassword) {
+    window.toast?.('Vui lòng nhập đầy đủ 3 trường mật khẩu','warn');
+    return;
+  }
+  if(newPassword.length < 8) {
+    window.toast?.('Mật khẩu mới phải có ít nhất 8 ký tự','warn');
+    return;
+  }
+  if(newPassword !== confirmPassword) {
+    window.toast?.('Xác nhận mật khẩu mới không khớp','warn');
+    return;
+  }
+  if(newPassword === currentPassword) {
+    window.toast?.('Mật khẩu mới phải khác mật khẩu hiện tại','warn');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/auth/change-password', {
+      method:'POST', credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      }),
+    });
+    const data = await res.json();
+    if(!res.ok) {
+      throw new Error(data.detail || 'Đổi mật khẩu thất bại');
+    }
+
+    _resetPasswordForm();
+    window.toast?.(data.message || 'Đổi mật khẩu thành công','ok');
+
+    if(data.force_relogin) {
+      _currentUser = null;
+      hideUserMenu();
+      setTimeout(() => {
+        _showLogin();
+        window.toast?.('Vui lòng đăng nhập lại bằng mật khẩu mới','warn');
+      }, 300);
+    }
+  } catch(e) {
+    window.toast?.('Lỗi: ' + e.message,'err');
+  }
+}
+
 // Auto-load users khi vào settings
 document.addEventListener('DOMContentLoaded', () => {
   checkSession();
@@ -264,7 +332,7 @@ window.authApp = {
   login, logout, checkSession,
   toggleUserMenu, hideUserMenu,
   showAddUser, hideAddUser, createUser,
-  toggleActive, deleteUser,
+  toggleActive, deleteUser, changePassword,
   getCurrentUser: () => _currentUser,
   hasPermission: (perm) =>
     _currentUser?.permissions?.includes(perm) || false,

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import Optional
 from services.auth import (
     login, logout, verify_token,
-    list_users, create_user, update_user, delete_user,
+    list_users, create_user, update_user, delete_user, change_password,
     ROLES, PERMISSIONS
 )
 
@@ -26,6 +26,11 @@ class UserUpdate(BaseModel):
     full_name: Optional[str] = None
     is_active: Optional[int] = None
     password:  Optional[str] = None
+
+class ChangePasswordBody(BaseModel):
+    current_password: str
+    new_password: str
+    confirm_password: str
 
 @router.post("/login")
 def do_login(body: LoginBody, response: Response):
@@ -100,3 +105,28 @@ def remove_user(user_id: int,
 @router.get("/roles")
 def get_roles():
     return ROLES
+
+@router.post("/change-password")
+def change_my_password(body: ChangePasswordBody,
+                       response: Response,
+                       soc_token: Optional[str] = Cookie(None)):
+    user = verify_token(soc_token)
+    if not user:
+        raise HTTPException(401, "Chưa đăng nhập")
+    if body.new_password != body.confirm_password:
+        raise HTTPException(400, "Xác nhận mật khẩu mới không khớp")
+
+    ok, message = change_password(
+        user["username"],
+        body.current_password,
+        body.new_password,
+    )
+    if not ok:
+        raise HTTPException(400, message)
+
+    response.delete_cookie("soc_token")
+    return {
+        "status": "ok",
+        "message": message,
+        "force_relogin": True,
+    }
