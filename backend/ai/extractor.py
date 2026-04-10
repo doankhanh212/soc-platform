@@ -65,6 +65,7 @@ def extract_features(event: dict) -> dict:
     alert_signature = alert.get("signature", "")
     alert_severity  = _safe_int(alert.get("severity", 0))
     rule_level      = _safe_int(rule.get("level", 0))
+    rule_description = rule.get("description", "")
     timestamp       = event.get("@timestamp") or event.get("timestamp", "")
 
     # Ghi vào sliding window nếu có src_ip hợp lệ.
@@ -105,6 +106,7 @@ def extract_features(event: dict) -> dict:
         "alert_signature": alert_signature,
         "alert_severity":  alert_severity,
         "rule_level":      rule_level,
+        "rule_description": rule_description,
         "timestamp":       timestamp,
         # Computed features
         "connection_count": connection_count,
@@ -191,6 +193,8 @@ async def extract_features_batch(window_minutes: int = 15) -> list[dict]:
             "alert_severity":   int(grp["alert_severity"].fillna(0).max()),
             "rule_level":       int(grp["rule_level"].fillna(0).max()),
             "mean_rule_level":  round(float(grp["rule_level"].fillna(0).mean()), 2),
+            "alert_signature":  str(grp.get("data_alert_signature", pd.Series(dtype="object")).fillna("").iloc[0] if len(grp) else ""),
+            "rule_description": str(grp.get("rule_description", pd.Series(dtype="object")).fillna("").iloc[0] if len(grp) else ""),
         })
 
     return results
