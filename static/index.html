@@ -70,7 +70,7 @@
                color:var(--green);font-size:14px;font-weight:700;
                cursor:pointer;font-family:inherit;letter-spacing:.04em;
                transition:all .15s"
-        onmouseover="this.style.background='rgba(0,255,65,0.2)'"
+        onmouseover="this.style.background='var(--accent-20)'"
         onmouseout="this.style.background='var(--green3)'">
         ĐĂNG NHẬP
       </button>
@@ -335,7 +335,7 @@
         <button class="aq-filter-btn active" onclick="window.alertQueue.filterSev(null,this)">Tất cả</button>
         <button class="aq-filter-btn" style="color:var(--red)" onclick="window.alertQueue.filterSev('critical',this)">Critical</button>
         <button class="aq-filter-btn" style="color:var(--amber)" onclick="window.alertQueue.filterSev('high',this)">High</button>
-        <button class="aq-filter-btn" style="color:#ffcc00" onclick="window.alertQueue.filterSev('medium',this)">Medium</button>
+        <button class="aq-filter-btn" style="color:var(--medium)" onclick="window.alertQueue.filterSev('medium',this)">Medium</button>
         <button class="aq-filter-btn" style="color:var(--green)" onclick="window.alertQueue.filterSev('low',this)">Low</button>
       </div>
     </div>
@@ -368,8 +368,8 @@
   </div>
 
   <div id="aq-bulk-bar" style="display:none;align-items:center;gap:10px;
-    padding:10px 14px;background:rgba(0,255,65,.05);
-    border:1px solid rgba(0,255,65,.2);border-radius:var(--r);margin-bottom:10px">
+    padding:10px 14px;background:var(--accent-04);
+    border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px">
     <span id="aq-bulk-count" style="font-size:12px;color:var(--green);
       font-family:'Share Tech Mono',monospace">0 đã chọn</span>
     <button onclick="window.alertQueue.bulkAction('assign')"
@@ -512,7 +512,7 @@
     <!-- Left: danh sách -->
     <div>
       <div id="case-bulk-toolbar" style="display:none;align-items:center;gap:10px;
-        padding:10px 14px;background:rgba(0,255,65,.05);border:1px solid rgba(0,255,65,.2);
+        padding:10px 14px;background:var(--accent-04);border:1px solid var(--accent-20);
         border-radius:var(--r);margin-bottom:10px">
         <span id="case-bulk-count"
           style="font-size:12px;color:var(--green);font-family:'Share Tech Mono',monospace">
@@ -808,8 +808,8 @@
       </div>
     </div>
     <span id="soar-auto-badge" style="display:none;font-size:10px;padding:3px 8px;
-      border:1px solid rgba(0,255,136,.45);border-radius:999px;color:#00ff88;
-      background:rgba(0,255,136,.08);font-weight:700;letter-spacing:.05em">
+      border:1px solid var(--border2);border-radius:999px;color:var(--green);
+      background:var(--accent-08);font-weight:700;letter-spacing:.05em">
       ● TỰ ĐỘNG BẬT
     </span>
   </div>
@@ -817,52 +817,52 @@
   <!-- Main layout: sidebar + canvas -->
   <div style="display:flex;gap:12px;height:calc(100vh - 250px);">
     <!-- Sidebar (280px) -->
-    <aside id="soar-sidebar" style="width:280px;background:#0d1a0d;
-      border:1px solid #1a3a1a;border-radius:var(--r2);
+    <aside id="soar-sidebar" style="width:280px;background:var(--bg1);
+      border:1px solid var(--border);border-radius:var(--r2);
       overflow-y:auto;flex-shrink:0;padding:12px">
 
       <!-- ── KHU VỰC 1: THÀNH PHẦN PLAYBOOK ── -->
       <div style="margin-bottom:16px">
-        <div style="font-size:10px;color:#00ff88;text-transform:uppercase;
-          letter-spacing:.12em;font-weight:700;margin-bottom:10px;border-bottom:1px solid #1a3a1a;padding-bottom:8px;opacity:.9">
+        <div style="font-size:10px;color:var(--green);text-transform:uppercase;
+          letter-spacing:.12em;font-weight:700;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;opacity:.9">
           💡 Thành phần Playbook
         </div>
         <div style="display:flex;flex-direction:column;gap:10px">
           
           <div draggable="true" ondragstart="window.soarApp.onDragStart(event)" 
             class="soar-component" data-type="action" title="Thực thi một tác vụ tự động"
-            style="padding:10px 12px;background:#111a11;border:1px solid #1a3a1a;border-radius:8px;
+            style="padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;
                    cursor:grab;transition:all .2s;user-select:none;
-                   border-left:3px solid #00ff88">
-            <div style="font-size:13px;font-weight:700;color:#00ff88;margin-bottom:4px">≡ Hành động</div>
-            <div style="font-size:9px;color:#888;line-height:1.3">Thực thi một tác vụ tự động</div>
+                   border-left:3px solid var(--green)">
+            <div style="font-size:13px;font-weight:700;color:var(--green);margin-bottom:4px">≡ Hành động</div>
+            <div style="font-size:9px;color:var(--muted);line-height:1.3">Thực thi một tác vụ tự động</div>
           </div>
 
           <div draggable="true" ondragstart="window.soarApp.onDragStart(event)" 
             class="soar-component" data-type="condition" title="Rẽ nhánh theo điều kiện"
-            style="padding:10px 12px;background:#111a11;border:1px solid #1a3a1a;border-radius:8px;
+            style="padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;
                    cursor:grab;transition:all .2s;user-select:none;
-                   border-left:3px solid #FFCC00">
-            <div style="font-size:13px;font-weight:700;color:#FFCC00;margin-bottom:4px">⚠ Điều kiện</div>
-            <div style="font-size:9px;color:#888;line-height:1.3">Rẽ nhánh theo điều kiện</div>
+                   border-left:3px solid var(--medium)">
+            <div style="font-size:13px;font-weight:700;color:var(--medium);margin-bottom:4px">⚠ Điều kiện</div>
+            <div style="font-size:9px;color:var(--muted);line-height:1.3">Rẽ nhánh theo điều kiện</div>
           </div>
 
           <div draggable="true" ondragstart="window.soarApp.onDragStart(event)" 
             class="soar-component" data-type="trigger" title="Bắt đầu playbook khi có sự kiện"
-            style="padding:10px 12px;background:#111a11;border:1px solid #1a3a1a;border-radius:8px;
+            style="padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;
                    cursor:grab;transition:all .2s;user-select:none;
-                   border-left:3px solid #FF8800">
-            <div style="font-size:13px;font-weight:700;color:#FF8800;margin-bottom:4px">⚡ Kích hoạt</div>
-            <div style="font-size:9px;color:#888;line-height:1.3">Bắt đầu playbook khi có sự kiện</div>
+                   border-left:3px solid var(--amber)">
+            <div style="font-size:13px;font-weight:700;color:var(--amber);margin-bottom:4px">⚡ Kích hoạt</div>
+            <div style="font-size:9px;color:var(--muted);line-height:1.3">Bắt đầu playbook khi có sự kiện</div>
           </div>
 
           <div draggable="true" ondragstart="window.soarApp.onDragStart(event)" 
             class="soar-component" data-type="connector" title="Kết nối với hệ thống ngoài"
-            style="padding:10px 12px;background:#111a11;border:1px solid #1a3a1a;border-radius:8px;
+            style="padding:10px 12px;background:var(--bg);border:1px solid var(--border);border-radius:8px;
                    cursor:grab;transition:all .2s;user-select:none;
-                   border-left:3px solid #00ccff">
-            <div style="font-size:13px;font-weight:700;color:#00ccff;margin-bottom:4px">→ Kết nối</div>
-            <div style="font-size:9px;color:#888;line-height:1.3">Kết nối với hệ thống ngoài</div>
+                   border-left:3px solid var(--cyan)">
+            <div style="font-size:13px;font-weight:700;color:var(--cyan);margin-bottom:4px">→ Kết nối</div>
+            <div style="font-size:9px;color:var(--muted);line-height:1.3">Kết nối với hệ thống ngoài</div>
           </div>
 
         </div>
@@ -870,40 +870,40 @@
 
       <!-- ── KHU VỰC 2: KẾT NỐI NGOÀI ── -->
       <div style="margin-bottom:16px">
-        <div style="font-size:10px;color:#00ff88;text-transform:uppercase;
-          letter-spacing:.12em;font-weight:700;margin-bottom:10px;border-bottom:1px solid #1a3a1a;padding-bottom:8px;opacity:.9">
+        <div style="font-size:10px;color:var(--green);text-transform:uppercase;
+          letter-spacing:.12em;font-weight:700;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;opacity:.9">
           🔗 Kết nối ngoài
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;place-items:center">
           
           <div class="soar-external-link" data-target="firewall" 
             draggable="true" ondragstart="window.soarApp.onDragStart(event)"
-            style="width:70px;height:70px;background:#111a11;border:1px solid #1a3a1a;border-radius:8px;
+            style="width:70px;height:70px;background:var(--bg);border:1px solid var(--border);border-radius:8px;
                    cursor:grab;display:flex;flex-direction:column;align-items:center;justify-content:center;
                    font-size:24px;transition:all .2s;user-select:none;
                    padding:4px;box-sizing:border-box">
             <div style="font-size:26px">🛡</div>
-            <div style="font-size:8px;color:#888;margin-top:4px;text-align:center;line-height:1.1">Tường lửa</div>
+            <div style="font-size:8px;color:var(--muted);margin-top:4px;text-align:center;line-height:1.1">Tường lửa</div>
           </div>
 
           <div class="soar-external-link" data-target="edr"
             draggable="true" ondragstart="window.soarApp.onDragStart(event)"
-            style="width:70px;height:70px;background:#111a11;border:1px solid #1a3a1a;border-radius:8px;
+            style="width:70px;height:70px;background:var(--bg);border:1px solid var(--border);border-radius:8px;
                    cursor:grab;display:flex;flex-direction:column;align-items:center;justify-content:center;
                    font-size:24px;transition:all .2s;user-select:none;
                    padding:4px;box-sizing:border-box">
             <div style="font-size:26px">🖥</div>
-            <div style="font-size:8px;color:#888;margin-top:4px;text-align:center;line-height:1.1">EDR</div>
+            <div style="font-size:8px;color:var(--muted);margin-top:4px;text-align:center;line-height:1.1">EDR</div>
           </div>
 
           <div class="soar-external-link" data-target="threat_intel"
             draggable="true" ondragstart="window.soarApp.onDragStart(event)"
-            style="width:70px;height:70px;background:#111a11;border:1px solid #1a3a1a;border-radius:8px;
+            style="width:70px;height:70px;background:var(--bg);border:1px solid var(--border);border-radius:8px;
                    cursor:grab;display:flex;flex-direction:column;align-items:center;justify-content:center;
                    font-size:24px;transition:all .2s;user-select:none;
                    padding:4px;box-sizing:border-box">
             <div style="font-size:26px">🌐</div>
-            <div style="font-size:8px;color:#888;margin-top:4px;text-align:center;line-height:1.1">Threat Intel</div>
+            <div style="font-size:8px;color:var(--muted);margin-top:4px;text-align:center;line-height:1.1">Threat Intel</div>
           </div>
 
         </div>
@@ -911,17 +911,17 @@
 
       <!-- ── KHU VỰC 3: LỊCH SỬ ── -->
       <div>
-        <div style="font-size:10px;color:#00ff88;text-transform:uppercase;
-          letter-spacing:.12em;font-weight:700;margin-bottom:10px;border-bottom:1px solid #1a3a1a;padding-bottom:8px;opacity:.9">
+        <div style="font-size:10px;color:var(--green);text-transform:uppercase;
+          letter-spacing:.12em;font-weight:700;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:8px;opacity:.9">
           📋 Lịch sử chạy
         </div>
         <div id="soar-history" style="font-size:10px;max-height:140px;overflow-y:auto">
-          <div style="padding:12px;text-align:center;color:#666;font-size:9px">Đang tải lịch sử...</div>
+          <div style="padding:12px;text-align:center;color:var(--muted);font-size:9px">Đang tải lịch sử...</div>
         </div>
-        <div style="margin-top:8px;padding-top:8px;border-top:1px solid #1a3a1a">
+        <div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--border)">
           <button onclick="window.soarApp.showAllHistory()"
-            style="width:100%;padding:6px;background:#111a11;border:1px solid #1a3a1a;
-                   border-radius:6px;color:#888;font-size:9px;cursor:pointer;transition:all .2s">
+            style="width:100%;padding:6px;background:var(--bg);border:1px solid var(--border);
+                   border-radius:6px;color:var(--muted);font-size:9px;cursor:pointer;transition:all .2s">
             Xem tất cả →
           </button>
         </div>
@@ -930,7 +930,7 @@
     </aside>
 
     <!-- Canvas (phần còn lại) -->
-    <div style="flex:1;background:#0a0f0a;border:1px solid var(--border);
+    <div style="flex:1;background:var(--bg);border:1px solid var(--border);
       border-radius:var(--r2);overflow:hidden;position:relative;display:flex;flex-direction:column">
       <!-- Toolbar -->
       <div style="display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--bg1)">
@@ -947,8 +947,8 @@
                  border-radius:var(--r);color:var(--red);font-size:11px;cursor:pointer">🗑 Xóa tất cả</button>
         <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
           <select id="soar-template-select"
-            style="padding:7px 8px;background:#111a11;border:1px solid #1a3a1a;
-                   border-radius:var(--r);color:#9eb79e;font-size:11px;min-width:210px">
+            style="padding:7px 8px;background:var(--bg);border:1px solid var(--border);
+                   border-radius:var(--r);color:var(--muted);font-size:11px;min-width:210px">
             <option value="">📋 Mẫu có sẵn...</option>
             <option value="ssh_bruteforce">Phản ứng SSH Brute Force</option>
             <option value="malicious_ip">Kiểm tra IP độc hại</option>
@@ -965,7 +965,7 @@
 
       <!-- Canvas with drag-drop -->
       <div id="playbook-canvas" style="flex:1;overflow:hidden;position:relative;
-        background-image:radial-gradient(#1a2a1a 1px, transparent 1px);
+        background-image:radial-gradient(var(--border-subtle) 1px, transparent 1px);
         background-size:24px 24px;cursor:grab">
         <div id="canvas-viewport" style="position:absolute;top:0;left:0;
           width:2600px;height:1800px;transform:translate(0px,0px) scale(1);
@@ -974,23 +974,23 @@
           <div id="nodes-layer" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:10"></div>
         </div>
         <div id="soar-zoom-level" style="position:absolute;right:10px;bottom:10px;
-          background:rgba(5,16,5,.9);border:1px solid rgba(0,255,136,.25);
-          border-radius:6px;color:#8acb8a;font-size:11px;padding:4px 8px;z-index:20">
+          background:var(--bg1);border:1px solid var(--border);
+          border-radius:6px;color:var(--muted);font-size:11px;padding:4px 8px;z-index:20">
           100%
         </div>
         <div id="run-log-panel">
           <div style="display:flex;align-items:center;gap:12px;padding:8px 16px;
-                      border-bottom:1px solid #1a3a1a;flex-shrink:0">
-            <span style="color:#00ff88;font-size:13px;font-weight:500">📋 Nhật ký thực thi</span>
-            <span id="log-status" style="color:#FFCC00;font-size:12px">Đang chạy...</span>
+                      border-bottom:1px solid var(--border);flex-shrink:0">
+            <span style="color:var(--green);font-size:13px;font-weight:500">📋 Nhật ký thực thi</span>
+            <span id="log-status" style="color:var(--medium);font-size:12px">Đang chạy...</span>
             <span style="flex:1"></span>
             <button onclick="downloadLog()"
-              style="background:transparent;border:1px solid #1a3a1a;color:#888;
+              style="background:transparent;border:1px solid var(--border);color:var(--muted);
                      padding:3px 10px;border-radius:4px;font-size:11px;cursor:pointer">
               📥 Tải log
             </button>
             <button onclick="closeLogPanel()"
-              style="background:transparent;border:none;color:#666;font-size:16px;cursor:pointer">✕</button>
+              style="background:transparent;border:none;color:var(--muted);font-size:16px;cursor:pointer">✕</button>
           </div>
           <div id="log-body"
             style="flex:1;overflow-y:auto;padding:8px 16px;font-family:monospace;font-size:12px">
@@ -1000,8 +1000,8 @@
 
       <div id="soar-run-modal" class="soar-run-modal" aria-hidden="true">
         <div class="soar-run-dialog">
-          <div style="font-size:16px;font-weight:700;color:#cdeccd;margin-bottom:10px">Xác nhận chạy Playbook</div>
-          <div style="font-size:12px;color:#88a988;line-height:1.5;margin-bottom:12px">
+          <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:10px">Xác nhận chạy Playbook</div>
+          <div style="font-size:12px;color:var(--muted);line-height:1.5;margin-bottom:12px">
             Chạy playbook với dữ liệu mẫu?<br>
             Playbook sẽ thực thi theo thứ tự các node đã kết nối.<br>
             Chế độ: Mô phỏng (không thực thi thật)

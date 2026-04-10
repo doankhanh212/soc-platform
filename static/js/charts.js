@@ -1,9 +1,20 @@
 (function(){
-const G = {
-  green:'#00ff41', green2:'rgba(0,255,65,.15)', green3:'rgba(0,255,65,.08)',
-  red:'#ff3333',   amber:'#ff9900', blue:'#00aaff', purple:'#cc44ff',
-  medium:'#ffcc00',muted:'#3a6b40', grid:'rgba(0,255,65,.06)',
-};
+function _css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function _G(){
+  return {
+    green:  _css('--green')  || '#00ff41',
+    green2: _css('--green3') || 'rgba(0,255,65,.15)',
+    green3: _css('--accent-08') || 'rgba(0,255,65,.08)',
+    red:    _css('--red')    || '#ff3333',
+    amber:  _css('--amber')  || '#ff9900',
+    blue:   _css('--blue')   || '#00aaff',
+    purple: _css('--purple') || '#cc44ff',
+    medium: _css('--medium') || '#ffcc00',
+    muted:  _css('--muted')  || '#3a6b40',
+    grid:   _css('--grid-line') || 'rgba(0,255,65,.06)',
+  };
+}
+let G = _G();
 const BASE = {
   responsive:true, maintainAspectRatio:false,
   plugins:{legend:{display:false}},
@@ -55,7 +66,7 @@ function initSeverityDonut(id){
       datasets:[{
         data:[0,0,0,0],
         backgroundColor:[G.red,G.amber,G.medium,G.green],
-        borderColor:'#010a03',borderWidth:3,hoverOffset:6,
+        borderColor:G.bg||'#010a03',borderWidth:3,hoverOffset:6,
       }],
     },
     options:{
@@ -86,7 +97,7 @@ function initTacticsBar(id){
     type:'bar',
     data:{labels:[],datasets:[{
       data:[],
-      backgroundColor:'rgba(204,68,255,.6)',borderColor:G.purple,
+      backgroundColor:G.purple+'99',borderColor:G.purple,
       borderWidth:1,borderRadius:3,
     }]},
     options:{...BASE,indexAxis:'y'},
@@ -154,7 +165,7 @@ function initSuricataBar(id){
     type:'bar',
     data:{labels:[],datasets:[{
       data:[],
-      backgroundColor:'rgba(0,170,255,.4)',borderColor:G.blue,
+      backgroundColor:G.blue+'66',borderColor:G.blue,
       borderWidth:1,borderRadius:3,
     }]},
     options:{...BASE},
@@ -190,6 +201,52 @@ function updateSuricataBarDirect(sigs){
   _suri.update('none');
 }
 
+/* Re-read CSS vars after theme switch and recolor all active charts */
+function refreshChartColors(){
+  G = _G();
+  if(_tl){
+    _tl.data.datasets[0].borderColor = G.green;
+    _tl.data.datasets[0].backgroundColor = G.green2;
+    _tl.data.datasets[0].pointBackgroundColor = G.green;
+    _tl.options.scales.x.grid.color = G.grid;
+    _tl.options.scales.y.grid.color = G.grid;
+    _tl.options.scales.x.ticks.color = G.muted;
+    _tl.options.scales.y.ticks.color = G.muted;
+    _tl.update('none');
+  }
+  if(_sev){
+    _sev.data.datasets[0].backgroundColor = [G.red,G.amber,G.medium,G.green];
+    _sev.options.plugins.legend.labels.color = G.muted;
+    _sev.update('none');
+  }
+  if(_tactics){
+    _tactics.data.datasets[0].backgroundColor = G.purple+'99';
+    _tactics.data.datasets[0].borderColor = G.purple;
+    _tactics.options.scales.x.grid.color = G.grid;
+    _tactics.options.scales.y.grid.color = G.grid;
+    _tactics.options.scales.x.ticks.color = G.muted;
+    _tactics.options.scales.y.ticks.color = G.muted;
+    _tactics.update('none');
+  }
+  if(_rules){
+    _rules.data.datasets[0].backgroundColor = G.green2;
+    _rules.data.datasets[0].borderColor = G.green;
+    _rules.options.scales.x.grid.color = G.grid;
+    _rules.options.scales.y.grid.color = G.grid;
+    _rules.options.scales.x.ticks.color = G.muted;
+    _rules.options.scales.y.ticks.color = G.muted;
+    _rules.update('none');
+  }
+  if(_suri){
+    _suri.data.datasets[0].borderColor = G.blue;
+    _suri.options.scales.x.grid.color = G.grid;
+    _suri.options.scales.y.grid.color = G.grid;
+    _suri.options.scales.x.ticks.color = G.muted;
+    _suri.options.scales.y.ticks.color = G.muted;
+    _suri.update('none');
+  }
+}
+
 window.socCharts={
   initTimeline,updateTimeline,
   initSeverityDonut,updateSeverityDonut,
@@ -198,5 +255,6 @@ window.socCharts={
   initSuricataBar,updateSuricataBar,
   updateRulesBarDirect,
   updateSuricataBarDirect,
+  refreshChartColors,
 };
 })();

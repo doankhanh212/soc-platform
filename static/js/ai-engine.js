@@ -49,10 +49,12 @@
       .replaceAll("'", '&#39;');
   }
 
+  function _css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
   function scoreColor(score) {
-    if (score < 0.3) return '#00ff88';
-    if (score <= 0.6) return '#FFCC00';
-    return '#FF4444';
+    if (score < 0.3) return _css('--green') || '#00ff88';
+    if (score <= 0.6) return _css('--medium') || '#FFCC00';
+    return _css('--red') || '#FF4444';
   }
 
   function formatCount(value) {
@@ -216,18 +218,18 @@
 
       const miniTable = relevantIPs.length ? `
         <table style="width:100%;font-size:10px;margin-top:8px;border-collapse:collapse">
-          <thead><tr style="color:#555">
+          <thead><tr style="color:var(--muted)">
             <th style="text-align:left;padding:2px 4px">IP</th>
             <th style="text-align:right;padding:2px 4px">Điểm</th>
             <th style="text-align:center;padding:2px 4px"></th>
           </tr></thead>
           <tbody>${relevantIPs.map(a => `
-            <tr style="border-top:1px solid #1a2a1a">
+            <tr style="border-top:1px solid var(--border-subtle)">
               <td style="color:var(--cyan);padding:2px 4px;font-family:monospace">${esc(a.ip || '—')}</td>
-              <td style="color:#FFCC00;text-align:right;padding:2px 4px">${(Number(a.diem_rui_ro || 0) * 100).toFixed(1)}%</td>
+              <td style="color:var(--medium);text-align:right;padding:2px 4px">${(Number(a.diem_rui_ro || 0) * 100).toFixed(1)}%</td>
               <td style="text-align:center;padding:2px 4px">
                 <button type="button" onclick='window.aiEngineApp.confirmBlockIP(${JSON.stringify(a.ip || "")})'
-                  style="background:none;border:none;color:#FF4444;cursor:pointer;font-size:11px" title="Chặn IP">🚫</button>
+                  style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px" title="Chặn IP">🚫</button>
               </td>
             </tr>
           `).join('')}</tbody>
@@ -271,7 +273,7 @@
     const canBlock = ip !== '—';
     const blockBtn = canBlock && !isBlocked
       ? `<button type="button" onclick='window.aiEngineApp.confirmBlockIP(${JSON.stringify(ip)})'
-          style="background:#1a0000;border:1px solid #FF4444;color:#FF4444;
+          style="background:var(--bg);border:1px solid var(--red);color:var(--red);
                  padding:4px 10px;border-radius:4px;font-size:11px;cursor:pointer;margin-left:8px">
           🛡 Chặn
         </button>`
@@ -311,7 +313,7 @@
       row.style.opacity = '0.5';
       const actionCell = row.querySelector('.action-cell');
       if (actionCell) {
-        actionCell.innerHTML = '<span style="color:#555;font-size:11px;border:1px solid #333;padding:3px 8px;border-radius:4px">ĐÃ CHẶN</span>';
+        actionCell.innerHTML = '<span style="color:var(--muted);font-size:11px;border:1px solid var(--muted);padding:3px 8px;border-radius:4px">ĐÃ CHẶN</span>';
       }
     });
   }
@@ -354,7 +356,7 @@
 
   function renderExplainableReasons(ly_do) {
     if (!ly_do || typeof ly_do !== 'object') {
-      return '<p style="color:#666">Đang phân tích...</p>';
+      return '<p style="color:var(--muted)">Đang phân tích...</p>';
     }
 
     const reasons = [];
@@ -391,7 +393,7 @@
     }
 
     if (!reasons.length) {
-      return '<p style="color:#666">Đang phân tích...</p>';
+      return '<p style="color:var(--muted)">Đang phân tích...</p>';
     }
 
     return reasons.map((reason) => `
@@ -472,7 +474,7 @@
     }
 
     if (!top) {
-      wrap.innerHTML = '<p style="color:#666">Đang phân tích...</p>';
+      wrap.innerHTML = '<p style="color:var(--muted)">Đang phân tích...</p>';
       mini.innerHTML = '<div class="ai-empty">Không có dữ liệu.</div>';
       return;
     }

@@ -185,7 +185,7 @@ window.soarApp = (function() {
       this.arrowsLayer.innerHTML = `
         <defs>
           <marker id="soar-arrow-head" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
-            <path d="M 0 0 L 10 5 L 0 10 z" fill="#00ff88"></path>
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--green)"></path>
           </marker>
         </defs>
       `;
@@ -1315,7 +1315,7 @@ window.soarApp = (function() {
       }
       if (this.logStatus) {
         this.logStatus.textContent = 'Đang chạy...';
-        this.logStatus.style.color = '#FFCC00';
+        this.logStatus.style.color = 'var(--medium)';
       }
     }
 
@@ -1381,7 +1381,7 @@ window.soarApp = (function() {
       }
       if (this.logStatus) {
         this.logStatus.textContent = hasError ? 'Có lỗi ✗' : 'Hoàn thành ✓';
-        this.logStatus.style.color = hasError ? '#FF4444' : '#00ff88';
+        this.logStatus.style.color = hasError ? 'var(--red)' : 'var(--green)';
       }
     }
 
@@ -1389,7 +1389,7 @@ window.soarApp = (function() {
       this.isAutoEnabled = !this.isAutoEnabled;
 
       if (this.toggleBtn) {
-        this.toggleBtn.style.background = this.isAutoEnabled ? 'rgba(0,255,65,.2)' : '#2a4a2a';
+        this.toggleBtn.style.background = this.isAutoEnabled ? 'var(--accent-20)' : 'var(--bg1)';
       }
       if (this.toggleDot) {
         this.toggleDot.classList.toggle('active', this.isAutoEnabled);
@@ -1469,21 +1469,21 @@ window.soarApp = (function() {
       }
 
       if (!this.runHistory.length) {
-        this.historyEl.innerHTML = '<div style="padding:12px;text-align:center;color:#666;font-size:9px">Chưa có lịch sử chạy</div>';
+        this.historyEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--muted);font-size:9px">Chưa có lịch sử chạy</div>';
         return;
       }
 
       const items = this.runHistory.slice(0, 5);
       this.historyEl.innerHTML = items.map(item => {
         const ok = item.ket_qua === 'thanh_cong';
-        const dot = ok ? '#00ff88' : '#ff3333';
+        const dot = ok ? 'var(--green)' : 'var(--red)';
         const timeText = item.thoi_gian || this.relativeTime(item.id);
         return `
-          <div class="soar-history-item" data-run-id="${item.id}" style="padding:8px;padding-left:6px;border-bottom:1px solid #1a3a1a;font-size:9px;display:flex;align-items:center;gap:6px;border-left:3px solid ${dot}">
+          <div class="soar-history-item" data-run-id="${item.id}" style="padding:8px;padding-left:6px;border-bottom:1px solid var(--border-subtle);font-size:9px;display:flex;align-items:center;gap:6px;border-left:3px solid ${dot}">
             <span style="color:${dot};font-size:10px;font-weight:700">●</span>
             <div style="flex:1;min-width:0">
-              <div style="color:#ccc;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.ten}</div>
-              <div style="color:#666;font-size:8px">${timeText}</div>
+              <div style="color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${item.ten}</div>
+              <div style="color:var(--muted);font-size:8px">${timeText}</div>
             </div>
             <div style="color:${dot};font-size:8px;font-weight:700">${item.so_node_thanh_cong || 0}/${(item.so_node_thanh_cong || 0) + (item.so_node_that_bai || 0)}</div>
           </div>

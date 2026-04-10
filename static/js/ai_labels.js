@@ -12,35 +12,37 @@
  *   WazuhRule      → "Quy tắc bảo mật"
  */
 
+function _lbCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
 const AI_MODEL_LABELS = {
   IsolationForest: {
     nhan: 'Hành vi bất thường',
     icon: '🔍',
-    mau: '#00ff88',
+    get mau(){ return _lbCss('--green') || '#00ff88'; },
     mo_ta: 'IP này hành xử khác hoàn toàn so với các IP bình thường'
   },
   CUSUM: {
     nhan: 'Tăng đột biến',
     icon: '📈',
-    mau: '#FFCC00',
+    get mau(){ return _lbCss('--medium') || '#FFCC00'; },
     mo_ta: 'Lưu lượng tăng liên tục — xu hướng leo thang âm thầm'
   },
   EWMA: {
     nhan: 'Đột biến lưu lượng',
     icon: '⚡',
-    mau: '#FF8800',
+    get mau(){ return _lbCss('--amber') || '#FF8800'; },
     mo_ta: 'Traffic tăng đột ngột vượt ngưỡng thống kê'
   },
   Entropy: {
     nhan: 'Dữ liệu mã hóa/ẩn',
     icon: '🔐',
-    mau: '#FF4444',
+    get mau(){ return _lbCss('--red') || '#FF4444'; },
     mo_ta: 'File mã hóa hàng loạt hoặc DNS tunneling'
   },
   WazuhRule: {
     nhan: 'Quy tắc bảo mật',
     icon: '🛡️',
-    mau: '#00ccff',
+    get mau(){ return _lbCss('--cyan') || '#00ccff'; },
     mo_ta: 'Quy tắc Wazuh kích hoạt từ log SSH/PAM/Syslog'
   }
 };
@@ -99,12 +101,17 @@ function renderModelBadges(modelArray) {
  *   0.7+  → "🛡 Chặn IP"     #FF4444
  */
 function renderActionSuggestion(score) {
-  let action = { icon: '👁️', text: 'Theo dõi', color: '#00FF88', bg: '#001a00' };
+  const _g = _lbCss('--green') || '#00FF88';
+  const _m = _lbCss('--medium') || '#FFCC00';
+  const _r = _lbCss('--red') || '#FF4444';
+  const _bg = _lbCss('--bg1') || '#001a00';
+
+  let action = { icon: '👁️', text: 'Theo dõi', color: _g, bg: _bg };
 
   if (score >= 0.7) {
-    action = { icon: '🛡️', text: 'Chặn IP', color: '#FF4444', bg: '#1a0000' };
+    action = { icon: '🛡️', text: 'Chặn IP', color: _r, bg: _bg };
   } else if (score >= 0.3) {
-    action = { icon: '⚠️', text: 'Kiểm tra', color: '#FFCC00', bg: '#1a1a00' };
+    action = { icon: '⚠️', text: 'Kiểm tra', color: _m, bg: _bg };
   }
 
   return `<span 
@@ -166,7 +173,7 @@ function renderModelExplanation(model) {
     line-height: 1.5;
   ">
     <strong>${label.icon} ${label.nhan}</strong><br/>
-    <span style="color: #aaa;">${label.mo_ta}</span>
+    <span style="color: var(--muted);">${label.mo_ta}</span>
   </div>`;
 }
 

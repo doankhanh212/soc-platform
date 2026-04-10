@@ -84,7 +84,7 @@ function _setCurrentUser(user) {
   const roleEl  = document.getElementById('avatar-role');
   const circleEl = document.getElementById('avatar-circle');
   const roleColors = {
-    admin:'#ff9900', soc2:'#8b5cf6', soc1:'#3b82f6', viewer:'#6b7280'
+    admin:'var(--amber)', soc2:'var(--purple)', soc1:'var(--blue)', viewer:'var(--muted)'
   };
   const roleLabels = {
     admin:'Admin', soc2:'SOC Level 2', soc1:'SOC Level 1', viewer:'Viewer'
@@ -96,7 +96,7 @@ function _setCurrentUser(user) {
     circleEl.textContent            = (user.username||'A')[0].toUpperCase();
     circleEl.style.borderColor      = roleColors[user.role] || 'var(--green)';
     circleEl.style.color            = roleColors[user.role] || 'var(--green)';
-    circleEl.style.background       = (roleColors[user.role]||'#00ff41') + '20';
+    circleEl.style.background       = roleColors[user.role] ? (roleColors[user.role] + '20') : 'var(--accent-20)';
   }
 
   // Update user menu
@@ -182,8 +182,8 @@ async function loadUsers() {
             ${u.is_active?'Vô hiệu':'Kích hoạt'}
           </button>
           <button onclick="window.authApp.deleteUser(${u.id},'${u.username}')"
-            style="padding:3px 8px;background:rgba(255,51,51,.1);
-                   border:1px solid rgba(255,51,51,.3);border-radius:3px;
+            style="padding:3px 8px;background:var(--red2);
+                   border:1px solid var(--red);border-radius:3px;
                    color:var(--red);font-size:10px;cursor:pointer">Xóa</button>
           `:'<span style="color:var(--muted);font-size:11px">Mặc định</span>'}
         </td>

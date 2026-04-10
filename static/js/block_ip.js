@@ -38,7 +38,7 @@ function _injectBlockIPStyles() {
     .bip-backdrop {
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.7);
+      background:rgba(0,0,0,.7);
       backdrop-filter: blur(3px);
       display: flex;
       align-items: center;
@@ -51,14 +51,14 @@ function _injectBlockIPStyles() {
       to   { opacity: 1; }
     }
     .bip-modal {
-      background: #0d1a0d;
-      border: 2px solid #ff440044;
+      background:var(--bg1);
+      border:2px solid var(--red);
       border-radius: 10px;
       padding: 28px 32px;
       width: 420px;
       max-width: 90vw;
       animation: bipSlideUp 200ms ease-out;
-      box-shadow: 0 8px 32px #00000088, 0 0 0 1px #ff440022;
+      box-shadow:0 8px 32px rgba(0,0,0,.5),0 0 0 1px var(--red);
     }
     @keyframes bipSlideUp {
       from { opacity: 0; transform: translateY(16px); }
@@ -74,7 +74,7 @@ function _injectBlockIPStyles() {
       font-size: 22px;
     }
     .bip-hdr-title {
-      color: #ff4444;
+      color:var(--red);
       font-size: 16px;
       font-weight: 700;
     }
@@ -82,14 +82,14 @@ function _injectBlockIPStyles() {
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #1a0000;
-      border: 1px solid #ff444433;
+      background:var(--red2);
+      border:1px solid var(--red);
       border-radius: 6px;
       padding: 12px;
       margin-bottom: 18px;
       font-size: 20px;
       font-weight: 700;
-      color: #ff8888;
+      color:var(--red);
       font-family: 'Courier New', monospace;
       letter-spacing: 2px;
     }
@@ -104,11 +104,11 @@ function _injectBlockIPStyles() {
       gap: 10px;
       font-size: 12px;
       padding: 6px 10px;
-      background: #0a0f0a;
+      background:var(--bg);
       border-radius: 4px;
     }
     .bip-detail-label {
-      color: #555;
+      color:var(--muted);
       width: 90px;
       flex-shrink: 0;
       font-size: 10px;
@@ -117,15 +117,15 @@ function _injectBlockIPStyles() {
       padding-top: 1px;
     }
     .bip-detail-value {
-      color: #aaa;
+      color:var(--muted);
       flex: 1;
       word-break: break-all;
     }
     .bip-reason-input {
-      background: #060e06;
-      border: 1px solid #1a3a1a;
+      background:var(--bg);
+      border:1px solid var(--border);
       border-radius: 4px;
-      color: #00ff88;
+      color:var(--green);
       padding: 6px 10px;
       font-size: 12px;
       width: 100%;
@@ -135,19 +135,19 @@ function _injectBlockIPStyles() {
       font-family: inherit;
     }
     .bip-reason-input:focus {
-      border-color: #00ff8866;
+      border-color:var(--green)66;
     }
     .bip-warning {
       display: flex;
       align-items: flex-start;
       gap: 8px;
-      background: #1a0d00;
-      border: 1px solid #ff880033;
+      background:var(--amber2);
+      border:1px solid var(--amber);
       border-radius: 4px;
       padding: 10px 12px;
       margin-bottom: 18px;
       font-size: 11px;
-      color: #cc8800;
+      color:var(--amber);
       line-height: 1.5;
     }
     .bip-btns {
@@ -166,23 +166,23 @@ function _injectBlockIPStyles() {
       letter-spacing: 0.3px;
     }
     .bip-btn-cancel {
-      background: #111;
-      color: #888;
-      border-color: #333;
+      background:var(--bg);
+      color:var(--muted);
+      border-color:var(--border);
     }
     .bip-btn-cancel:hover {
-      background: #1a1a1a;
-      color: #aaa;
+      background:var(--bg1);
+      color:var(--muted);
     }
     .bip-btn-confirm {
-      background: #1a0000;
-      color: #ff4444;
-      border-color: #ff444466;
+      background:var(--red2);
+      color:var(--red);
+      border-color:var(--red)66;
     }
     .bip-btn-confirm:hover {
-      background: #2a0000;
-      border-color: #ff4444aa;
-      box-shadow: 0 0 12px #ff444433;
+      background:var(--red2);
+      border-color:var(--red)aa;
+      box-shadow:0 0 12px var(--red);
     }
     .bip-btn-confirm:disabled {
       opacity: 0.5;
@@ -192,8 +192,8 @@ function _injectBlockIPStyles() {
       display: inline-block;
       width: 12px;
       height: 12px;
-      border: 2px solid #ff444455;
-      border-top-color: #ff4444;
+      border:2px solid var(--red);
+      border-top-color:var(--red);
       border-radius: 50%;
       animation: bipSpin 0.6s linear infinite;
       vertical-align: middle;
@@ -206,9 +206,9 @@ function _injectBlockIPStyles() {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      background: #1a0000;
-      color: #ff6666;
-      border: 1px solid #ff444433;
+      background:var(--red2);
+      color:var(--red);
+      border:1px solid var(--red);
       border-radius: 4px;
       padding: 4px 9px;
       font-size: 11px;
@@ -218,9 +218,9 @@ function _injectBlockIPStyles() {
       transition: all 150ms;
     }
     .btn-block-ip:hover {
-      background: #2a0000;
-      border-color: #ff4444aa;
-      box-shadow: 0 0 8px #ff444422;
+      background:var(--red2);
+      border-color:var(--red)aa;
+      box-shadow:0 0 8px var(--red);
     }
     .btn-block-ip:active { transform: scale(0.96); }
 
@@ -229,27 +229,27 @@ function _injectBlockIPStyles() {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      background: #1a1a1a;
-      color: #666;
-      border: 1px solid #2a2a2a;
+      background:var(--bg1);
+      color:var(--muted);
+      border:1px solid var(--border);
       border-radius: 4px;
       padding: 2px 7px;
       font-size: 10px;
       font-weight: 700;
       letter-spacing: 0.5px;
       text-decoration: line-through;
-      text-decoration-color: #555;
+      text-decoration-color:var(--muted);
     }
     .ip-text.is-blocked {
-      color: #555 !important;
+      color:var(--muted) !important;
       text-decoration: line-through;
-      text-decoration-color: #444;
+      text-decoration-color:var(--muted);
     }
 
     /* Whitelist warning on hover */
     .ip-whitelisted {
       cursor: help;
-      border-bottom: 1px dashed #888;
+      border-bottom:1px dashed var(--muted);
     }
   `;
   document.head.appendChild(s);
@@ -607,9 +607,9 @@ function _notify(type, title, subtitle = '') {
   const n = document.createElement('div');
   n.style.cssText = `
     position:fixed; bottom:24px; right:24px; z-index:999999;
-    background:#0d1a0d; border:1px solid #00ff8844; color:#00ff88;
+    background:var(--bg1); border:1px solid var(--border); color:var(--green);
     padding:10px 16px; border-radius:6px; font-size:12px;
-    box-shadow:0 4px 16px #00000066; max-width:320px;
+    box-shadow:0 4px 16px rgba(0,0,0,.4); max-width:320px;
   `;
   n.textContent = `${title}${subtitle ? ' — ' + subtitle : ''}`;
   document.body.appendChild(n);

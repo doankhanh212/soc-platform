@@ -33,7 +33,7 @@ function _renderEscalate(){
   if (item) {
     item.classList.toggle('checked', _shouldEscalate);
     item.style.background = _shouldEscalate
-      ? 'rgba(255,153,0,.12)' : 'rgba(255,153,0,.05)';
+      ? 'var(--amber2)' : 'rgba(255,153,0,.05)';
   }
 }
 

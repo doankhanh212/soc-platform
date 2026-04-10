@@ -47,12 +47,14 @@ class ToastManager {
    * @private
    */
   getConfig(type) {
+    const _css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+    const bg = _css('--bg1') || '#001a00';
     const configs = {
       nghiem_trong: {
         label: 'Nghiêm Trọng',
-        bgColor: '#1a0000',
-        borderColor: '#FF4444',
-        textColor: '#FF4444',
+        bgColor: bg,
+        borderColor: _css('--red') || '#FF4444',
+        textColor: _css('--red') || '#FF4444',
         icon: '🚨',
         duration: 10000,
         hasAudio: true,
@@ -60,9 +62,9 @@ class ToastManager {
       },
       cao: {
         label: 'Cao',
-        bgColor: '#1a0800',
-        borderColor: '#FF8800',
-        textColor: '#FF8800',
+        bgColor: bg,
+        borderColor: _css('--amber') || '#FF8800',
+        textColor: _css('--amber') || '#FF8800',
         icon: '⚠️',
         duration: 8000,
         hasAudio: false,
@@ -70,9 +72,9 @@ class ToastManager {
       },
       ai: {
         label: 'AI Alert',
-        bgColor: '#0a0f0a',
-        borderColor: '#9333EA',
-        textColor: '#9333EA',
+        bgColor: bg,
+        borderColor: _css('--purple') || '#9333EA',
+        textColor: _css('--purple') || '#9333EA',
         icon: '🤖',
         duration: 10000,
         hasAudio: false,
@@ -80,9 +82,9 @@ class ToastManager {
       },
       thanh_cong: {
         label: 'Thành Công',
-        bgColor: '#001a00',
-        borderColor: '#00FF88',
-        textColor: '#00FF88',
+        bgColor: bg,
+        borderColor: _css('--green') || '#00FF88',
+        textColor: _css('--green') || '#00FF88',
         icon: '✅',
         duration: 3000,
         hasAudio: false,
@@ -90,9 +92,9 @@ class ToastManager {
       },
       thong_tin: {
         label: 'Thông Tin',
-        bgColor: '#001a0f',
-        borderColor: '#00ccff',
-        textColor: '#00ccff',
+        bgColor: bg,
+        borderColor: _css('--cyan') || '#00ccff',
+        textColor: _css('--cyan') || '#00ccff',
         icon: 'ℹ️',
         duration: 4000,
         hasAudio: false,
@@ -304,7 +306,7 @@ class ToastManager {
         el.style.border = originalBorder;
         return;
       }
-      el.style.borderColor = flashes % 2 === 0 ? '#FF4444' : '#aa0000';
+      el.style.borderColor = flashes % 2 === 0 ? (_css('--red')||'#FF4444') : (_css('--red')||'#aa0000');
       flashes++;
     }, 200);
   }

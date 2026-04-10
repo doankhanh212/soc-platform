@@ -371,8 +371,7 @@ function renderGeoTable(geoIPs, topIPs) {
   const rows = data.slice(0, 10).map((d, i) => {
     const pct   = (d.count / max * 100).toFixed(1);
     const color = d.count > 1000 ? 'var(--red)'
-          : d.count > 300  ? 'var(--amber)'
-          : d.count > 50   ? '#ffcc00'
+          : d.count > 300  ? 'var(--amber)': d.count > 50   ? 'var(--medium)'
           : 'var(--green)';
 
     // Hiển thị city nếu có
@@ -391,7 +390,7 @@ function renderGeoTable(geoIPs, topIPs) {
         </span>
         <span class="geo-ip" style="min-width:125px;font-family:'Share Tech Mono',
           monospace;font-size:11px;color:var(--cyan)">${d.ip}</span>
-        <div class="geo-bar-wrap" style="flex:1;height:5px;background:rgba(0,255,65,.08);
+        <div class="geo-bar-wrap" style="flex:1;height:5px;background:var(--accent-08);
           border-radius:3px;overflow:hidden;margin:0 8px">
           <div class="geo-bar" style="width:${pct}%;height:100%;
             background:${color};border-radius:3px;transition:width .4s"></div>
@@ -667,7 +666,7 @@ function _statusBadge(s){
     'In Progress':'<span class="badge b-prog">Đang xử lý</span>',
     'Escalated':'<span class="badge b-esc">Leo thang</span>',
     'Resolved':'<span class="badge b-done">Đã phân loại</span>',
-    'Closed':'<span class="badge" style="background:rgba(60,60,60,.3);color:#666">Đóng</span>',
+    'Closed':'<span class="badge" style="background:rgba(60,60,60,.3);color:var(--muted)">Đóng</span>',
   };
   return m[s]||`<span class="badge">${s}</span>`;
 }
@@ -895,8 +894,8 @@ function renderDetailPanel(c){
             border-top:1px solid var(--border);padding-top:6px;margin-top:4px">
             💡 ${l.recommendation}</div>`:''}
           <button onclick="window.casesApp.deleteTriageLog('${c.case_id}')"
-            style="margin-top:8px;padding:4px 12px;background:rgba(255,51,51,.1);
-                   border:1px solid rgba(255,51,51,.3);border-radius:var(--r);
+            style="margin-top:8px;padding:4px 12px;background:var(--red2);
+                   border:1px solid var(--red);border-radius:var(--r);
                    color:var(--red);font-size:11px;cursor:pointer;width:100%">
             🗑 Xóa phân loại này — reset về Mới
           </button>
@@ -1271,7 +1270,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const sevColors = {
       critical:'var(--red)', high:'var(--amber)',
-      medium:'#ffcc00', low:'var(--green)'
+      medium:'var(--medium)', low:'var(--green)'
     };
     const sevLabels = {
       critical:'NGHIÊM TRỌNG', high:'CAO',
@@ -1325,7 +1324,7 @@ document.addEventListener('DOMContentLoaded', () => {
             onclick="window.alertQueue.markFP(${idx})">✗ FP</button>
           ${src !== '—' ? `<button class="aq-action-btn" style="color:var(--cyan);font-size:10px"
             onclick="window.alertQueue.lookupIP('${src}')" title="Tra cứu AbuseIPDB">🔍 IP</button>
-          <button class="aq-action-btn" style="color:#FF4444;font-size:10px"
+          <button class="aq-action-btn" style="color:var(--red);font-size:10px"
             onclick="confirmBlockIP('${src}',{ly_do:'Alert queue block'})" title="Chặn IP">🚫</button>` : ''}
         </td>
       </tr>`;
@@ -1479,14 +1478,14 @@ document.addEventListener('DOMContentLoaded', () => {
       const modal = document.createElement('div');
       modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:99999';
       modal.innerHTML = `
-        <div style="background:#0d1a0d;border:1px solid var(--cyan);border-radius:8px;padding:20px;width:380px;max-width:90vw">
+        <div style="background:var(--bg1);border:1px solid var(--cyan);border-radius:8px;padding:20px;width:380px;max-width:90vw">
           <h3 style="color:var(--cyan);margin:0 0 12px">🔍 AbuseIPDB: ${data.ip}</h3>
-          <p style="color:#ccc;font-size:13px">Điểm nguy hiểm: <strong style="color:#FF4444">${data.abuse_score || 0}%</strong></p>
-          <p style="color:#aaa;font-size:12px">Quốc gia: ${data.country || '—'}</p>
-          <p style="color:#aaa;font-size:12px">ISP: ${data.isp || '—'}</p>
-          <p style="color:#aaa;font-size:12px">Tor: ${data.is_tor ? '✅ Có' : '❌ Không'}</p>
-          <p style="color:#aaa;font-size:12px">Báo cáo: ${data.total_reports || 0} lần</p>
-          <button onclick="this.closest('div[style]').remove()" style="margin-top:12px;padding:6px 16px;background:transparent;border:1px solid #555;color:#888;border-radius:4px;cursor:pointer">Đóng</button>
+          <p style="color:var(--text);font-size:13px">Điểm nguy hiểm: <strong style="color:var(--red)">${data.abuse_score || 0}%</strong></p>
+          <p style="color:var(--muted);font-size:12px">Quốc gia: ${data.country || '—'}</p>
+          <p style="color:var(--muted);font-size:12px">ISP: ${data.isp || '—'}</p>
+          <p style="color:var(--muted);font-size:12px">Tor: ${data.is_tor ? '✅ Có' : '❌ Không'}</p>
+          <p style="color:var(--muted);font-size:12px">Báo cáo: ${data.total_reports || 0} lần</p>
+          <button onclick="this.closest('div[style]').remove()" style="margin-top:12px;padding:6px 16px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:4px;cursor:pointer">Đóng</button>
         </div>`;
       modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
       document.body.appendChild(modal);
@@ -1516,7 +1515,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   const _sevColors={
     critical:'var(--red)',high:'var(--amber)',
-    medium:'#ffcc00',low:'var(--green)'
+    medium:'var(--medium)', low:'var(--green)'
   };
   const _sevLabels={
     critical:'NGHIÊM TRỌNG',high:'CAO',
@@ -1620,7 +1619,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ${item[valField].toLocaleString()}
               </span>
             </div>
-            <div style="height:4px;background:rgba(255,255,255,0.06);
+            <div style="height:4px;background:var(--accent-08);
               border-radius:4px;overflow:hidden">
               <div style="height:100%;width:${pct}%;background:${barColor};
                 border-radius:4px;transition:width .4s ease"></div>

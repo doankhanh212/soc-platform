@@ -4,9 +4,11 @@
  * Vanilla JS, full Vietnamese content
  */
 
+function _css(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+
 const TI_THEME = {
-  bg: '#0a0f0a',
-  accent: '#00ff88',
+  get bg()     { return _css('--bg') || '#0a0f0a'; },
+  get accent() { return _css('--green') || '#00ff88'; },
 };
 
 const TI_STATE = {
@@ -59,26 +61,26 @@ function renderThreatIntelLayout() {
       <h2 style="color:${TI_THEME.accent};font-size:20px;font-weight:600;margin-bottom:4px">
         Threat Intelligence
       </h2>
-      <p style="color:#666;font-size:13px;margin-bottom:20px">
+      <p style="color:var(--muted);font-size:13px;margin-bottom:20px">
         IOC Enrichment · Nguồn đe dọa bên ngoài
       </p>
 
       <div style="display:flex;gap:8px;margin-bottom:16px">
         <input id="ti-search-input" type="text"
           placeholder="Nhập IP, domain, hash để tra cứu..."
-          style="flex:1;padding:10px 14px;background:#0d1a0d;border:1px solid #1a3a1a;
-                 border-radius:6px;color:#ccc;font-size:14px;outline:none"
+          style="flex:1;padding:10px 14px;background:var(--bg1);border:1px solid var(--border-subtle);
+                 border-radius:6px;color:var(--text);font-size:14px;outline:none"
           onkeydown="if(event.key==='Enter') doLookup()"
         />
         <button onclick="doLookup()"
-          style="padding:10px 20px;background:#001a00;border:1px solid ${TI_THEME.accent};
+          style="padding:10px 20px;background:var(--bg1);border:1px solid ${TI_THEME.accent};
                  color:${TI_THEME.accent};border-radius:6px;font-size:13px;cursor:pointer;
                  font-weight:500;white-space:nowrap">
           🔍 Tra cứu
         </button>
       </div>
 
-      <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid #1a3a1a;padding-bottom:0">
+      <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:1px solid var(--border-subtle);padding-bottom:0">
         <button class="ti-tab active" onclick="switchTab('search')" id="tab-search">Tra cứu IP</button>
         <button class="ti-tab" onclick="switchTab('ioc')" id="tab-ioc">Danh sách IOC</button>
         <button class="ti-tab" onclick="switchTab('feeds')" id="tab-feeds">Feed nguồn</button>
@@ -86,7 +88,7 @@ function renderThreatIntelLayout() {
 
       <div id="panel-search">
         <div id="ti-result-area">
-          <div style="text-align:center;padding:40px 0;color:#444;font-size:13px">
+          <div style="text-align:center;padding:40px 0;color:var(--muted);font-size:13px">
             🔍 Nhập IP, domain hoặc hash để tra cứu danh tiếng và thông tin mối đe dọa
           </div>
         </div>
@@ -105,16 +107,16 @@ function renderThreatIntelLayout() {
         background: transparent;
         border: none;
         border-bottom: 2px solid transparent;
-        color: #666;
+        color: var(--muted);
         font-size: 13px;
         cursor: pointer;
         margin-bottom: -1px;
       }
-      .ti-tab:hover { color: #ccc; }
-      .ti-tab.active { color: #00ff88; border-bottom-color: #00ff88; }
+      .ti-tab:hover { color: var(--text); }
+      .ti-tab.active { color: var(--green); border-bottom-color: var(--green); }
       .ti-card {
-        background: #0d1a0d;
-        border: 1px solid #1a3a1a;
+        background:var(--bg1);
+        border:1px solid var(--border);
         border-radius: 8px;
         padding: 16px;
         margin-bottom: 12px;
@@ -165,7 +167,7 @@ async function doLookup() {
 
   const area = document.getElementById('ti-result-area');
   if (!area) return;
-  area.innerHTML = `<div style="color:#FFCC00;font-size:13px;padding:20px 0">⏳ Đang tra cứu ${tiEsc(query)}...</div>`;
+  area.innerHTML = `<div style="color:var(--medium);font-size:13px;padding:20px 0">⏳ Đang tra cứu ${tiEsc(query)}...</div>`;
 
   try {
     // Try existing threatintel endpoint first, fallback to AI lookup-ip
@@ -224,7 +226,7 @@ function buildMockResult(ip) {
 function renderIPResultCard(data) {
   const d = data || {};
   const score = Math.max(0, Math.min(100, Number(d.abuse_score || 0)));
-  const scoreColor = score >= 70 ? '#FF4444' : score >= 30 ? '#FFCC00' : '#00ff88';
+  const scoreColor = score >= 70 ? (_css('--red') || '#FF4444') : score >= 30 ? (_css('--medium') || '#FFCC00') : (_css('--green') || '#00ff88');
   const scoreLabel = score >= 70 ? 'NGUY HIỂM' : score >= 30 ? 'ĐÁNG NGỜ' : 'AN TOÀN';
 
   const flags = {
@@ -239,43 +241,43 @@ function renderIPResultCard(data) {
 
   const categoryHtml = categories.length
     ? categories.map((item) => `
-      <span class="ti-badge" style="background:#1a0000;border:1px solid #ff4444;color:#ff4444;margin:2px">
+      <span class="ti-badge" style="background:var(--bg);border:1px solid var(--red);color:var(--red);margin:2px">
         ${tiEsc(item)}
       </span>
     `).join('')
-    : '<span style="color:#444;font-size:12px">Chưa có phân loại</span>';
+    : '<span style="color:var(--muted);font-size:12px">Chưa có phân loại</span>';
 
   const aiHtml = models.length
     ? models.map((item) => `
-      <span class="ti-badge" style="background:#0a001a;border:1px solid #7c3aed;color:#a78bfa;margin:2px">
+      <span class="ti-badge" style="background:var(--bg);border:1px solid var(--purple);color:var(--purple);margin:2px">
         ${tiEsc(item)}
       </span>
     `).join('')
     : '';
 
   const noteHtml = d.note
-    ? `<div style="margin-top:12px;padding:10px;background:#111a00;border:1px solid #2a3a00;border-radius:6px;color:#888;font-size:12px">ℹ️ ${tiEsc(d.note)}</div>`
+    ? `<div style="margin-top:12px;padding:10px;background:var(--bg1);border:1px solid var(--border-subtle);border-radius:6px;color:var(--muted);font-size:12px">ℹ️ ${tiEsc(d.note)}</div>`
     : '';
 
   return `
     <div class="ti-card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:16px;flex-wrap:wrap">
         <div>
-          <div style="font-size:22px;font-weight:700;color:#00ffcc;font-family:monospace">${tiEsc(safeIp)}</div>
-          <div style="color:#888;font-size:13px;margin-top:4px">${flag} ${tiEsc(d.country || 'Unknown')} · ${tiEsc(d.isp || 'Unknown ISP')}</div>
+          <div style="font-size:22px;font-weight:700;color:var(--cyan);font-family:monospace">${tiEsc(safeIp)}</div>
+          <div style="color:var(--muted);font-size:13px;margin-top:4px">${flag} ${tiEsc(d.country || 'Unknown')} · ${tiEsc(d.isp || 'Unknown ISP')}</div>
         </div>
-        <div style="text-align:center;padding:12px 20px;background:#0a0a0a;border-radius:8px;border:2px solid ${scoreColor}">
+        <div style="text-align:center;padding:12px 20px;background:var(--bg);border-radius:8px;border:2px solid ${scoreColor}">
           <div style="font-size:32px;font-weight:700;color:${scoreColor}">${score}</div>
           <div style="font-size:10px;color:${scoreColor};font-weight:600;letter-spacing:1px">${scoreLabel}</div>
-          <div style="font-size:10px;color:#555;margin-top:2px">/ 100</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:2px">/ 100</div>
         </div>
       </div>
 
       <div style="margin-bottom:16px">
-        <div style="display:flex;justify-content:space-between;font-size:10px;color:#555;margin-bottom:4px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px">
           <span>AN TOÀN</span><span>ĐÁNG NGỜ</span><span>NGUY HIỂM</span>
         </div>
-        <div style="height:6px;background:#1a2a1a;border-radius:3px;overflow:hidden">
+        <div style="height:6px;background:var(--bg1);border-radius:3px;overflow:hidden">
           <div style="height:100%;width:${score}%;background:${scoreColor};border-radius:3px;transition:width .6s ease"></div>
         </div>
       </div>
@@ -289,44 +291,44 @@ function renderIPResultCard(data) {
           ['VPN', d.is_vpn ? '⚠️ Có' : '✓ Không'],
           ['Báo cáo', `${Number(d.total_reports || 0).toLocaleString('vi-VN')} lần`],
         ].map(([label, value]) => `
-          <div style="background:#111a11;border:1px solid #1a2a1a;border-radius:6px;padding:8px 10px">
-            <div style="font-size:10px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${tiEsc(label)}</div>
-            <div style="font-size:13px;color:#ccc">${tiEsc(value)}</div>
+          <div style="background:var(--bg1);border:1px solid var(--border-subtle);border-radius:6px;padding:8px 10px">
+            <div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">${tiEsc(label)}</div>
+            <div style="font-size:13px;color:var(--text)">${tiEsc(value)}</div>
           </div>
         `).join('')}
       </div>
 
       <div style="margin-bottom:16px">
-        <div style="font-size:11px;color:#555;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Phân loại mối đe dọa</div>
+        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Phân loại mối đe dọa</div>
         <div>${categoryHtml}</div>
       </div>
 
       ${Number(d.so_canh_bao_wazuh || 0) > 0 ? `
-        <div style="margin-bottom:12px;font-size:12px;color:#888">
-          🛡 <strong style="color:#FFCC00">Wazuh</strong> đã ghi nhận
-          <strong style="color:#fff">${Number(d.so_canh_bao_wazuh || 0).toLocaleString('vi-VN')}</strong> cảnh báo từ IP này
+        <div style="margin-bottom:12px;font-size:12px;color:var(--muted)">
+          🛡 <strong style="color:var(--medium)">Wazuh</strong> đã ghi nhận
+          <strong style="color:var(--text)">${Number(d.so_canh_bao_wazuh || 0).toLocaleString('vi-VN')}</strong> cảnh báo từ IP này
         </div>
       ` : ''}
 
       ${aiHtml ? `
         <div style="margin-bottom:12px">
-          <span style="font-size:11px;color:#555">🤖 AI phát hiện: </span>${aiHtml}
+          <span style="font-size:11px;color:var(--muted)">🤖 AI phát hiện: </span>${aiHtml}
         </div>
       ` : ''}
 
       ${noteHtml}
 
-      <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid #1a3a1a;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);flex-wrap:wrap">
         <button onclick="confirmBlockIP(${JSON.stringify(safeIp)}, 'Tra cứu Threat Intel')"
-          style="padding:8px 16px;background:#1a0000;border:1px solid #FF4444;color:#FF4444;border-radius:6px;font-size:13px;cursor:pointer">
+          style="padding:8px 16px;background:var(--bg);border:1px solid var(--red);color:var(--red);border-radius:6px;font-size:13px;cursor:pointer">
           🛡 Chặn IP
         </button>
         <button onclick="createIncidentFromIP(${JSON.stringify(safeIp)})"
-          style="padding:8px 16px;background:#1a1000;border:1px solid #FFCC00;color:#FFCC00;border-radius:6px;font-size:13px;cursor:pointer">
+          style="padding:8px 16px;background:var(--bg);border:1px solid var(--medium);color:var(--medium);border-radius:6px;font-size:13px;cursor:pointer">
           📋 Tạo vụ việc
         </button>
         <button onclick="openThreatHunting(${JSON.stringify(safeIp)})"
-          style="padding:8px 16px;background:#001a00;border:1px solid #00ff88;color:#00ff88;border-radius:6px;font-size:13px;cursor:pointer">
+          style="padding:8px 16px;background:var(--bg1);border:1px solid var(--green);color:var(--green);border-radius:6px;font-size:13px;cursor:pointer">
           🔍 Threat Hunt
         </button>
       </div>
@@ -337,7 +339,7 @@ function renderIPResultCard(data) {
 async function loadIOCList() {
   const panel = document.getElementById('panel-ioc');
   if (!panel) return;
-  panel.innerHTML = '<div style="color:#FFCC00;font-size:13px;padding:20px 0">⏳ Đang tải IOC...</div>';
+  panel.innerHTML = '<div style="color:var(--medium);font-size:13px;padding:20px 0">⏳ Đang tải IOC...</div>';
 
   let items = [];
   try {
@@ -369,14 +371,14 @@ async function loadIOCList() {
   }
   TI_STATE.iocItems = items;
 
-  const typeColor = { ip: '#00ccff', domain: '#a78bfa', hash: '#FFCC00', url: '#888' };
-  const levelColor = { cao: '#FF4444', trung_binh: '#FFCC00', thap: '#00ff88' };
+  const typeColor = { ip: _css('--cyan')||'#00ccff', domain: _css('--purple')||'#a78bfa', hash: _css('--medium')||'#FFCC00', url: _css('--muted')||'#888' };
+  const levelColor = { cao: _css('--red') || '#FF4444', trung_binh: _css('--medium') || '#FFCC00', thap: _css('--green') || '#00ff88' };
   const levelText = { cao: 'CAO', trung_binh: 'TRUNG BÌNH', thap: 'THẤP' };
 
   panel.innerHTML = `
     <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
       <select id="ioc-filter-type" onchange="filterIOC()"
-        style="padding:6px 10px;background:#0d1a0d;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px">
+        style="padding:6px 10px;background:var(--bg1);border:1px solid var(--border-subtle);color:var(--text);border-radius:4px;font-size:12px">
         <option value="">Tất cả loại</option>
         <option value="ip">IP</option>
         <option value="domain">Domain</option>
@@ -384,7 +386,7 @@ async function loadIOCList() {
         <option value="url">URL</option>
       </select>
       <select id="ioc-filter-level" onchange="filterIOC()"
-        style="padding:6px 10px;background:#0d1a0d;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px">
+        style="padding:6px 10px;background:var(--bg1);border:1px solid var(--border-subtle);color:var(--text);border-radius:4px;font-size:12px">
         <option value="">Tất cả mức độ</option>
         <option value="cao">Cao</option>
         <option value="trung_binh">Trung bình</option>
@@ -392,90 +394,90 @@ async function loadIOCList() {
       </select>
       <span style="flex:1"></span>
       <button onclick="showAddIOCForm()"
-        style="padding:6px 14px;background:#001a00;border:1px solid #00ff88;color:#00ff88;border-radius:4px;font-size:12px;cursor:pointer">
+        style="padding:6px 14px;background:var(--bg1);border:1px solid var(--green);color:var(--green);border-radius:4px;font-size:12px;cursor:pointer">
         + Thêm IOC
       </button>
     </div>
 
-    <div id="add-ioc-form" style="display:none;margin-bottom:12px;padding:12px;background:#0d1a0d;border:1px solid #1a3a1a;border-radius:6px">
+    <div id="add-ioc-form" style="display:none;margin-bottom:12px;padding:12px;background:var(--bg1);border:1px solid var(--border-subtle);border-radius:6px">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <input id="new-ioc-value" placeholder="IP / domain / hash..."
-          style="flex:1;min-width:200px;padding:6px 10px;background:#111a11;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px"/>
+          style="flex:1;min-width:200px;padding:6px 10px;background:var(--bg1);border:1px solid var(--border-subtle);color:var(--text);border-radius:4px;font-size:12px"/>
         <select id="new-ioc-type"
-          style="padding:6px 10px;background:#111a11;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px">
+          style="padding:6px 10px;background:var(--bg1);border:1px solid var(--border-subtle);color:var(--text);border-radius:4px;font-size:12px">
           <option value="ip">IP</option>
           <option value="domain">Domain</option>
           <option value="hash">Hash</option>
         </select>
         <select id="new-ioc-level"
-          style="padding:6px 10px;background:#111a11;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px">
+          style="padding:6px 10px;background:var(--bg1);border:1px solid var(--border-subtle);color:var(--text);border-radius:4px;font-size:12px">
           <option value="cao">Cao</option>
           <option value="trung_binh">Trung bình</option>
           <option value="thap">Thấp</option>
         </select>
         <input id="new-ioc-desc" placeholder="Mô tả ngắn..."
-          style="flex:2;min-width:160px;padding:6px 10px;background:#111a11;border:1px solid #1a3a1a;color:#ccc;border-radius:4px;font-size:12px"/>
+          style="flex:2;min-width:160px;padding:6px 10px;background:var(--bg1);border:1px solid var(--border-subtle);color:var(--text);border-radius:4px;font-size:12px"/>
         <button onclick="submitAddIOC()"
-          style="padding:6px 14px;background:#001a00;border:1px solid #00ff88;color:#00ff88;border-radius:4px;font-size:12px;cursor:pointer">Lưu</button>
+          style="padding:6px 14px;background:var(--bg1);border:1px solid var(--green);color:var(--green);border-radius:4px;font-size:12px;cursor:pointer">Lưu</button>
         <button onclick="document.getElementById('add-ioc-form').style.display='none'"
-          style="padding:6px 10px;background:transparent;border:1px solid #333;color:#666;border-radius:4px;font-size:12px;cursor:pointer">Hủy</button>
+          style="padding:6px 10px;background:transparent;border:1px solid var(--border);color:var(--muted);border-radius:4px;font-size:12px;cursor:pointer">Hủy</button>
       </div>
     </div>
 
     ${items.length === 0 ? `
-      <div style="text-align:center;padding:40px 0;color:#444;font-size:13px">
+      <div style="text-align:center;padding:40px 0;color:var(--muted);font-size:13px">
         Chưa có IOC nào. Nhấn "+ Thêm IOC" để thêm thủ công.
       </div>
     ` : `
       <table style="width:100%;border-collapse:collapse;font-size:12px" id="ioc-table">
         <thead>
-          <tr style="color:#555;text-transform:uppercase;letter-spacing:.5px;font-size:10px">
-            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Loại</th>
-            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Giá trị</th>
-            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Mức độ</th>
-            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Mô tả</th>
-            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Nguồn</th>
-            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid #1a3a1a">Lần cuối</th>
-            <th style="padding:8px 10px;text-align:center;border-bottom:1px solid #1a3a1a">Trạng thái</th>
-            <th style="padding:8px 10px;text-align:center;border-bottom:1px solid #1a3a1a">Xóa</th>
+          <tr style="color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-size:10px">
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)">Loại</th>
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)">Giá trị</th>
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)">Mức độ</th>
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)">Mô tả</th>
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)">Nguồn</th>
+            <th style="padding:8px 10px;text-align:left;border-bottom:1px solid var(--border)">Lần cuối</th>
+            <th style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--border)">Trạng thái</th>
+            <th style="padding:8px 10px;text-align:center;border-bottom:1px solid var(--border)">Xóa</th>
           </tr>
         </thead>
         <tbody>
           ${items.map((item) => `
             <tr data-ioc-type="${tiEsc(item.loai)}" data-ioc-level="${tiEsc(item.muc_do)}"
-                style="border-bottom:1px solid #0d1a0d" onmouseover="this.style.background='#111a11'" onmouseout="this.style.background='transparent'">
+                style="border-bottom:1px solid var(--border-subtle)" onmouseover="this.style.background='var(--bg1)'" onmouseout="this.style.background='transparent'">
               <td style="padding:8px 10px">
-                <span class="ti-badge" style="background:#0a1a2a;border:1px solid ${typeColor[item.loai] || '#555'};color:${typeColor[item.loai] || '#888'}">
+                <span class="ti-badge" style="background:var(--bg1);border:1px solid ${typeColor[item.loai] || '#555'};color:${typeColor[item.loai] || '#888'}">
                   ${tiEsc(String(item.loai || '').toUpperCase())}
                 </span>
               </td>
-              <td style="padding:8px 10px;font-family:monospace;color:#00ffcc">
+              <td style="padding:8px 10px;font-family:monospace;color:var(--cyan)">
                 ${tiEsc(item.gia_tri)}
                 <span data-copy="${tiEsc(item.gia_tri)}"
-                  style="color:#555;cursor:pointer;margin-left:6px;font-size:11px" title="Copy">⎘</span>
+                  style="color:var(--muted);cursor:pointer;margin-left:6px;font-size:11px" title="Copy">⎘</span>
               </td>
               <td style="padding:8px 10px">
-                <span class="ti-badge" style="background:#0a0a0a;border:1px solid ${levelColor[item.muc_do] || '#555'};color:${levelColor[item.muc_do] || '#888'}">
+                <span class="ti-badge" style="background:var(--bg);border:1px solid ${levelColor[item.muc_do] || '#555'};color:${levelColor[item.muc_do] || '#888'}">
                   ${tiEsc(levelText[item.muc_do] || item.muc_do)}
                 </span>
               </td>
-              <td style="padding:8px 10px;color:#888;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+              <td style="padding:8px 10px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
                 title="${tiEsc(item.mo_ta || '')}">${tiEsc(item.mo_ta || '—')}</td>
-              <td style="padding:8px 10px;color:#666">${tiEsc(item.nguon || '—')}</td>
-              <td style="padding:8px 10px;color:#555">${tiEsc(formatThoiGianTuongDoi(item.lan_cuoi) || '—')}</td>
+              <td style="padding:8px 10px;color:var(--muted)">${tiEsc(item.nguon || '—')}</td>
+              <td style="padding:8px 10px;color:var(--muted)">${tiEsc(formatThoiGianTuongDoi(item.lan_cuoi) || '—')}</td>
               <td style="padding:8px 10px;text-align:center">
-                <span style="width:28px;height:16px;border-radius:8px;display:inline-block;background:${item.da_kich_hoat ? '#00ff88' : '#333'};cursor:pointer"
+                <span style="width:28px;height:16px;border-radius:8px;display:inline-block;background:${item.da_kich_hoat ? 'var(--green)' : 'var(--border)'};cursor:pointer"
                   onclick="toggleIOC(${JSON.stringify(String(item.ioc_id || ''))}, this, ${!item.da_kich_hoat})"></span>
               </td>
               <td style="padding:8px 10px;text-align:center">
                 <button onclick="deleteIOC(${JSON.stringify(String(item.ioc_id || ''))}, this.closest('tr'))"
-                  style="background:transparent;border:none;color:#555;cursor:pointer;font-size:14px" title="Xóa">✕</button>
+                  style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px" title="Xóa">✕</button>
               </td>
             </tr>
           `).join('')}
         </tbody>
       </table>
-      <div style="margin-top:8px;color:#555;font-size:11px">${items.length} IOC</div>
+      <div style="margin-top:8px;color:var(--muted);font-size:11px">${items.length} IOC</div>
     `}
   `;
 
@@ -552,7 +554,7 @@ async function deleteIOC(id, row) {
 
 async function toggleIOC(id, element, newState) {
   const safeId = String(id || '').trim();
-  if (element) element.style.background = newState ? '#00ff88' : '#333';
+  if (element) element.style.background = newState ? (_css('--green') || '#00ff88') : 'var(--border)';
   if (!safeId) return;
 
   try {
@@ -571,10 +573,10 @@ function loadFeedSources() {
   if (!panel) return;
 
   const sources = [
-    { ten: 'AbuseIPDB', icon: '🛡', mo_ta: 'IP reputation database', trang_thai: 'ket_noi', ioc_count: 1247, cap_nhat: '5 phút trước', color: '#00ff88' },
-    { ten: 'Emerging Threats', icon: '⚡', mo_ta: 'Suricata rule feed', trang_thai: 'ket_noi', ioc_count: 892, cap_nhat: '1 giờ trước', color: '#00ff88' },
-    { ten: 'AlienVault OTX', icon: '👾', mo_ta: 'Open threat exchange', trang_thai: 'ngat', ioc_count: 0, cap_nhat: 'Chưa kết nối', color: '#555' },
-    { ten: 'VirusTotal', icon: '🔬', mo_ta: 'File & URL malware scanner', trang_thai: 'ngat', ioc_count: 0, cap_nhat: 'Chưa kết nối', color: '#555' },
+    { ten: 'AbuseIPDB', icon: '🛡', mo_ta: 'IP reputation database', trang_thai: 'ket_noi', ioc_count: 1247, cap_nhat: '5 phút trước', color: 'var(--green)' },
+    { ten: 'Emerging Threats', icon: '⚡', mo_ta: 'Suricata rule feed', trang_thai: 'ket_noi', ioc_count: 892, cap_nhat: '1 giờ trước', color: 'var(--green)' },
+    { ten: 'AlienVault OTX', icon: '👾', mo_ta: 'Open threat exchange', trang_thai: 'ngat', ioc_count: 0, cap_nhat: 'Chưa kết nối', color: 'var(--muted)' },
+    { ten: 'VirusTotal', icon: '🔬', mo_ta: 'File & URL malware scanner', trang_thai: 'ngat', ioc_count: 0, cap_nhat: 'Chưa kết nối', color: 'var(--muted)' },
   ];
 
   panel.innerHTML = `
@@ -585,26 +587,26 @@ function loadFeedSources() {
             <div style="display:flex;align-items:center;gap:10px">
               <span style="font-size:24px">${s.icon}</span>
               <div>
-                <div style="font-size:14px;font-weight:600;color:#fff">${tiEsc(s.ten)}</div>
-                <div style="font-size:11px;color:#666">${tiEsc(s.mo_ta)}</div>
+                <div style="font-size:14px;font-weight:600;color:var(--text)">${tiEsc(s.ten)}</div>
+                <div style="font-size:11px;color:var(--muted)">${tiEsc(s.mo_ta)}</div>
               </div>
             </div>
             <span style="font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;
-              background:${s.trang_thai === 'ket_noi' ? '#001a00' : '#1a1a1a'};
-              color:${s.trang_thai === 'ket_noi' ? '#00ff88' : '#555'}">
+              background:${s.trang_thai === 'ket_noi' ? 'var(--bg1)' : 'var(--bg)'};
+              color:${s.trang_thai === 'ket_noi' ? 'var(--green)' : 'var(--muted)'}">
               ${s.trang_thai === 'ket_noi' ? '● KẾT NỐI' : '● CHƯA KẾT NỐI'}
             </span>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:#666;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);margin-bottom:12px">
             <span>${s.ioc_count > 0 ? `${s.ioc_count.toLocaleString('vi-VN')} IOC` : 'Chưa đồng bộ'}</span>
             <span>${tiEsc(s.cap_nhat)}</span>
           </div>
           <div style="display:flex;gap:8px">
-            <button style="flex:1;padding:6px;background:transparent;border:1px solid #1a3a1a;color:#888;border-radius:4px;font-size:11px;cursor:pointer">
+            <button style="flex:1;padding:6px;background:transparent;border:1px solid var(--border-subtle);color:var(--muted);border-radius:4px;font-size:11px;cursor:pointer">
               ⚙ Cấu hình
             </button>
             ${s.trang_thai === 'ket_noi' ? `
-              <button style="flex:1;padding:6px;background:#001a00;border:1px solid #00ff88;color:#00ff88;border-radius:4px;font-size:11px;cursor:pointer">
+              <button style="flex:1;padding:6px;background:var(--bg1);border:1px solid var(--green);color:var(--green);border-radius:4px;font-size:11px;cursor:pointer">
                 🔄 Đồng bộ ngay
               </button>
             ` : ''}
@@ -613,9 +615,9 @@ function loadFeedSources() {
       `).join('')}
     </div>
 
-    <div style="margin-top:16px;padding:12px;background:#0d1a0d;border:1px solid #1a3a1a;border-radius:8px;font-size:12px;color:#666">
-      💡 <strong style="color:#888">Gợi ý:</strong> Kết nối AbuseIPDB để tra cứu IP thật.
-      Đăng ký tại <a href="https://www.abuseipdb.com" target="_blank" style="color:#00ff88">abuseipdb.com</a> → lấy API key → cấu hình trong Cài đặt.
+    <div style="margin-top:16px;padding:12px;background:var(--bg1);border:1px solid var(--border-subtle);border-radius:8px;font-size:12px;color:var(--muted)">
+      💡 <strong style="color:var(--muted)">Gợi ý:</strong> Kết nối AbuseIPDB để tra cứu IP thật.
+      Đăng ký tại <a href="https://www.abuseipdb.com" target="_blank" style="color:var(--green)">abuseipdb.com</a> → lấy API key → cấu hình trong Cài đặt.
     </div>
   `;
 }

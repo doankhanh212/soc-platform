@@ -169,6 +169,11 @@ function applyTheme(theme) {
   // Lưu vào localStorage
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(theme)); } catch{}
 
+  // Refresh chart colors to match new theme
+  if (window.socCharts && typeof window.socCharts.refreshChartColors === 'function') {
+    window.socCharts.refreshChartColors();
+  }
+
   // Update active state trong grid
   document.querySelectorAll('.theme-card').forEach(el => {
     el.classList.toggle('active', el.dataset.themeId === theme.id);
@@ -256,7 +261,7 @@ function renderGrid() {
       data-theme-id="${t.id}"
       onclick="window.themeApp.apply('${t.id}')"
       style="padding:10px;border-radius:var(--r2);cursor:pointer;
-             border:2px solid ${_current?.id===t.id ? t.accent : 'rgba(255,255,255,0.1)'};
+             border:2px solid ${_current?.id===t.id ? t.accent : 'var(--border)'};
              background:${t.bg};transition:all .2s;position:relative">
       <!-- Mini preview -->
       <div style="height:50px;border-radius:6px;background:${t.bg1};
@@ -312,8 +317,8 @@ const themeApp = {
       accent, text,
       muted: accent + '60',
       border: accent + '33',
-      red: '#ff3333',
-      amber: '#ff9900',
+      red: getComputedStyle(document.documentElement).getPropertyValue('--red').trim() || '#FF4444',
+      amber: getComputedStyle(document.documentElement).getPropertyValue('--amber').trim() || '#ff9900',
     });
     renderGrid();
     window.toast('Đã áp dụng màu tùy chỉnh', 'ok');
