@@ -188,9 +188,9 @@ async def extract_features_batch(window_minutes: int = 15) -> list[dict]:
             "alert_frequency":  int((grp["rule_level"] > 0).sum()),
             "port_variance":    int(unique_ports),
             "request_rate":     round(len(grp) / max(1, window_minutes), 2),
-            "alert_severity":   int(grp["alert_severity"].max()),
-            "rule_level":       int(grp["rule_level"].max()),
-            "mean_rule_level":  round(float(grp["rule_level"].mean()), 2),
+            "alert_severity":   int(grp["alert_severity"].fillna(0).max()),
+            "rule_level":       int(grp["rule_level"].fillna(0).max()),
+            "mean_rule_level":  round(float(grp["rule_level"].fillna(0).mean()), 2),
         })
 
     return results

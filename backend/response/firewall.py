@@ -29,7 +29,14 @@ _LOG_FILE = _DATA_DIR / "blocked_ips.log"
 _blocked: set[str] = set()
 _lock = Lock()
 
-_WHITELIST = frozenset({"127.0.0.1", "0.0.0.0", "::1", "10.0.0.1"})
+_WHITELIST = frozenset({
+    "127.0.0.1", "0.0.0.0", "::1", "10.0.0.1",
+    # ── VPS IPs — KHÔNG BAO GIỜ tự block ────────────────────────
+    "103.98.152.207",   # VPS Dashboard (whmcs167530)
+    "103.98.152.197",   # VPS Suricata  (whmcs167551)
+    # ── IP quản trị SSH — tránh lockout ─────────────────────────
+    "115.78.15.163",    # Admin IP
+})
 
 
 def _valid(ip: str) -> bool:
