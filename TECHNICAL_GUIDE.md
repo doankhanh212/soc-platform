@@ -466,13 +466,8 @@ extract_features → compute_anomaly_score → compute_risk_score → explain_ri
 ```
 
 **Auto-block logic:**
-- Risk ≥ 0.65 → block ngay
-- Risk ≥ 0.55 VÀ alerts/1h ≥ 80 → block
-- Hoặc log chứa pattern tấn công mạnh (`hydra`, `brute force`, `nmap`, `masscan`, `authentication failed`, v.v.) và kèm ít nhất 1 tín hiệu mạnh:
-    - `rule_level >= 8`
-    - hoặc `alerts_1h >= 15`
-    - hoặc `request_rate >= 5`
-    - hoặc `port_variance >= 8`
+- Risk ≥ 0.70 → block ngay
+- Risk ≥ 0.65 VÀ alerts/1h ≥ 1000 → block
 - Chỉ hoạt động khi `ai_block_auto = True` trong config
 
 **Ring buffer:** Lưu tối đa 5000 kết quả gần nhất trong memory.
@@ -1031,9 +1026,8 @@ CREATE TABLE processed_alerts (
                                      │
                     ┌────────────────▼────────────────────────┐
                     │   Auto Response (if ai_block_auto=True)  │
-                    │   risk ≥ 0.65 → block                    │
-                    │   risk ≥ 0.55 & alerts/1h ≥ 80 → block   │
-                    │   hoặc active-attack signature → block   │
+                    │   risk ≥ 0.70 → block                    │
+                    │   risk ≥ 0.65 & alerts/1h ≥ 1000 → block │
                     └──────────────────────────────────────────┘
 ```
 

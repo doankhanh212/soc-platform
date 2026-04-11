@@ -27,14 +27,10 @@ cfg = get_settings()
 # ── Lịch sử phân tích (in-memory ring buffer) ────────────────────
 _history: list[dict] = []
 _MAX_HISTORY = 5000
-AUTO_BLOCK_BASE_THRESHOLD = 0.65
-AUTO_BLOCK_COMBINED_RISK = 0.55
-AUTO_BLOCK_COMBINED_ALERTS_1H = 80
+AUTO_BLOCK_BASE_THRESHOLD = float(getattr(cfg, "ai_risk_threshold", 0.70) or 0.70)
+AUTO_BLOCK_COMBINED_RISK = 0.65
+AUTO_BLOCK_COMBINED_ALERTS_1H = 1000
 SOC_BLOCK_LOG = Path("/var/log/soc_blocks.log")
-AUTO_BLOCK_ATTACK_KEYWORDS = (
-    "hydra", "brute force", "bruteforce", "nmap", "masscan",
-    "port scan", "ssh brute", "scan ssh", "authentication failed",
-)
 
 
 def _derive_triggered_models(model_scores: dict, threshold: float = 0.5) -> list[str]:
@@ -90,25 +86,10 @@ def _estimate_alert_count_1h(features: dict) -> int:
 
 def _should_auto_block(risk_score: float, features: dict) -> bool:
     """Dieu kien block:
-    - risk >= 0.65, hoac
-    - risk >= 0.55 va so canh bao 1h >= 80
-    - attack signature ro rang (nmap/hydra/brute force) + tan suat/port scan dang ke
+    - risk >= 0.70, hoac
+    - risk >= 0.65 va so canh bao 1h >= 1000
     """
     alerts_1h = _estimate_alert_count_1h(features)
-    signature = str(features.get("alert_signature") or "").lower()
-    description = str(features.get("rule_description") or "").lower()
-    text = f"{signature} {description}"
-    port_variance = int(features.get("port_variance", 0) or 0)
-    request_rate = float(features.get("request_rate", 0.0) or 0.0)
-    rule_level = int(features.get("rule_level", 0) or 0)
-
-    looks_like_active_attack = any(keyword in text for keyword in AUTO_BLOCK_ATTACK_KEYWORDS)
-    active_attack_threshold_met = (
-        rule_level >= 8
-        or alerts_1h >= 15
-        or request_rate >= 5
-        or port_variance >= 8
-    )
 
     return (
         float(risk_score or 0.0) >= AUTO_BLOCK_BASE_THRESHOLD
@@ -116,7 +97,6 @@ def _should_auto_block(risk_score: float, features: dict) -> bool:
             float(risk_score or 0.0) >= AUTO_BLOCK_COMBINED_RISK
             and alerts_1h >= AUTO_BLOCK_COMBINED_ALERTS_1H
         )
-        or (looks_like_active_attack and active_attack_threshold_met)
     )
 
 
