@@ -34,6 +34,7 @@
     latestSnapshotAlerts: null,
     anomalyTotal: 0,
     anomalyList: [],
+    selectedExplainIp: null,
   };
 
   function byId(id) {
@@ -63,6 +64,14 @@
       return window.formatSoLan(n);
     }
     return n.toLocaleString('vi-VN');
+  }
+
+  function getAnomalyIP(item) {
+    return String(item?.ip || item?.src_ip || '').trim();
+  }
+
+  function getAnomalyScore(item) {
+    return Number(item?.diem_rui_ro ?? item?.risk_score ?? 0);
   }
 
   function normalizeAnomalyPayload(payload) {
@@ -354,6 +363,59 @@
     tbody.innerHTML = alerts.map(renderAnomalyRow).join('');
   }
 
+  function getTrackedAnomalies(anomalies) {
+    const deduped = new Map();
+
+    (Array.isArray(anomalies) ? anomalies : []).forEach((item) => {
+      const ip = getAnomalyIP(item);
+      if (!ip) return;
+
+      const score = getAnomalyScore(item);
+      const existing = deduped.get(ip);
+      if (!existing || score > getAnomalyScore(existing)) {
+        deduped.set(ip, item);
+      }
+    });
+
+    return Array.from(deduped.values())
+      .sort((left, right) => getAnomalyScore(right) - getAnomalyScore(left))
+      .slice(0, 8);
+  }
+
+  function renderTrackedIPSelector(tracked, selectedIp) {
+    if (!tracked.length) return '';
+
+    return `
+      <div style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)">IP đang bị AI theo dõi</div>
+          <div style="font-size:12px;color:var(--muted)">${tracked.length} IP rủi ro cao</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+          ${tracked.map((item) => {
+            const ip = getAnomalyIP(item);
+            const active = ip === selectedIp;
+            const score = getAnomalyScore(item);
+            const color = scoreColor(score);
+            return `
+              <button
+                type="button"
+                data-ai-track-ip="${esc(ip)}"
+                style="border:1px solid ${active ? color : 'var(--border-subtle, var(--border))'};
+                       background:${active ? 'rgba(0,204,255,.08)' : 'var(--bg1, var(--bg))'};
+                       color:${active ? color : 'var(--text)'};
+                       border-radius:999px;padding:7px 12px;cursor:pointer;font:inherit;
+                       display:flex;align-items:center;gap:8px">
+                <span style="font-family:monospace">${esc(ip)}</span>
+                <span style="font-size:11px;opacity:.85">${score.toFixed(3)}</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   function renderExplainableReasons(ly_do) {
     if (!ly_do || typeof ly_do !== 'object') {
       return '<p style="color:var(--muted)">Đang phân tích...</p>';
@@ -458,10 +520,9 @@
     const mini = byId('ai-ip-mini-stats');
     if (!wrap || !mini) return;
 
-    wrap.innerHTML = '<div class="ai-empty">Đang phân tích IP có mức rủi ro cao nhất...</div>';
+    wrap.innerHTML = '<div class="ai-empty">Đang phân tích các IP có mức rủi ro cao...</div>';
     mini.innerHTML = '';
 
-    let top = null;
     let anomalies = Array.isArray(state.anomalyList) ? state.anomalyList : [];
     if (!anomalies.length) {
       const payload = await fetchAIAnomalies(500);
@@ -469,25 +530,33 @@
       state.anomalyList = payload.list;
       state.anomalyTotal = payload.total;
     }
-    if (Array.isArray(anomalies) && anomalies.length) {
-      top = anomalies[0];
-    }
+
+    const tracked = getTrackedAnomalies(anomalies);
+    const top = tracked.find((item) => getAnomalyIP(item) === state.selectedExplainIp) || tracked[0] || null;
 
     if (!top) {
       wrap.innerHTML = '<p style="color:var(--muted)">Đang phân tích...</p>';
       mini.innerHTML = '<div class="ai-empty">Không có dữ liệu.</div>';
+      state.selectedExplainIp = null;
       return;
     }
 
+    const currentIp = getAnomalyIP(top);
     const ly_do = top.ly_do || {};
-    const score = Number(top.diem_rui_ro || 0);
+    const score = getAnomalyScore(top);
     const color = scoreColor(score);
     const label = score >= 0.7 ? 'CHẶN NGAY' : score >= 0.35 ? 'THEO DÕI' : 'AN TOÀN';
+    const models = Array.isArray(top.mo_hinh_kich_hoat) ? top.mo_hinh_kich_hoat : [];
+    state.selectedExplainIp = currentIp;
 
     wrap.innerHTML = `
+      ${renderTrackedIPSelector(tracked, currentIp)}
       <div class="ai-risk-head">
-        <div class="ai-risk-ip">${esc(top.ip || '—')}</div>
+        <div class="ai-risk-ip">${esc(currentIp || '—')}</div>
         <div class="ai-risk-meta">${esc(top.quoc_gia || 'Unknown')} · <span class="ai-risk-badge" style="color:${color};border-color:${color}">${score.toFixed(3)} · ${label}</span></div>
+      </div>
+      <div style="margin:8px 0 12px;color:var(--muted);font-size:12px">
+        ${models.length ? `Mô hình kích hoạt: ${esc(models.join(', '))}` : 'AI đang tiếp tục theo dõi hành vi từ IP này.'}
       </div>
       <div class="ai-risk-bar-wrap">
         <div class="ai-risk-levels"><span>AN TOÀN</span><span>THEO DÕI</span><span>CHẶN NGAY</span></div>
@@ -501,6 +570,13 @@
       </div>
     `;
 
+    wrap.querySelectorAll('[data-ai-track-ip]').forEach((button) => {
+      button.onclick = () => {
+        state.selectedExplainIp = button.getAttribute('data-ai-track-ip') || null;
+        loadTopRiskIP();
+      };
+    });
+
     mini.innerHTML = `
       <div class="ai-mini-box"><div>Tổng cảnh báo</div><strong>${Number(ly_do.tong_canh_bao || 0).toLocaleString('vi-VN')}</strong></div>
       <div class="ai-mini-box"><div>Cổng khác nhau</div><strong>${Number(ly_do.unique_dest_ports || 0).toLocaleString('vi-VN')}</strong></div>
@@ -508,7 +584,7 @@
       <div class="ai-mini-box"><div>File bị sửa</div><strong>${Number(ly_do.file_bi_sua || 0).toLocaleString('vi-VN')}</strong></div>
     `;
 
-    bindTopRiskActions(top.ip || '', score);
+    bindTopRiskActions(currentIp, score);
   }
 
   function loadMonitoringWidget() {

@@ -1,4 +1,4 @@
-# HQG AI-SOC Platform
+# AI-SOC Platform
 
 ```
 soc-platform/

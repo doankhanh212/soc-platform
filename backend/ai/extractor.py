@@ -43,6 +43,22 @@ def _safe_int(v) -> int:
         return 0
 
 
+def _first_non_empty(series: pd.Series | None) -> str:
+    if series is None:
+        return ""
+    try:
+        cleaned = series.fillna("")
+    except Exception:
+        return ""
+    if cleaned.empty:
+        return ""
+    for value in cleaned.tolist():
+        text = str(value or "").strip()
+        if text:
+            return text
+    return ""
+
+
 # ══════════════════════════════════════════════════════════════════
 # SINGLE EVENT — dùng cho POST /api/ai/analyze
 # ══════════════════════════════════════════════════════════════════
@@ -193,8 +209,8 @@ async def extract_features_batch(window_minutes: int = 15) -> list[dict]:
             "alert_severity":   int(grp["alert_severity"].fillna(0).max()),
             "rule_level":       int(grp["rule_level"].fillna(0).max()),
             "mean_rule_level":  round(float(grp["rule_level"].fillna(0).mean()), 2),
-            "alert_signature":  str(grp.get("data_alert_signature", pd.Series(dtype="object")).fillna("").iloc[0] if len(grp) else ""),
-            "rule_description": str(grp.get("rule_description", pd.Series(dtype="object")).fillna("").iloc[0] if len(grp) else ""),
+            "alert_signature":  _first_non_empty(grp.get("data_alert_signature")),
+            "rule_description": _first_non_empty(grp.get("rule_description")),
         })
 
     return results

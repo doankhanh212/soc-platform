@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
     rule_task.cancel()
     ai_task.cancel()
 
-app = FastAPI(title="HQG AI-SOC Platform", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="AI-SOC Platform", version="2.0.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"],
                    allow_methods=["*"], allow_headers=["*"])
 

@@ -1,5 +1,5 @@
 /**
- * TOAST.JS — Toast Notification System for HQG SOC Dashboard
+ * TOAST.JS — Toast Notification System for AI-SOC Dashboard
  * 
  * Features:
  * - 5 severity types with distinct styling

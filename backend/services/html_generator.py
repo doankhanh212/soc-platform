@@ -1,5 +1,5 @@
 """
-HQG Security Report HTML generator.
+AI-SOC Security Report HTML generator.
 
 This module transforms raw alert data into SOC-style intelligence reporting HTML.
 All dynamic content is escaped via html.escape before being rendered.
@@ -341,10 +341,10 @@ def _render_finding_card(f: dict) -> str:
 def generate_security_report_html(findings: list[dict], meta: dict[str, Any] | None = None) -> str:
     meta = meta or {}
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    target = meta.get("target", "HQG SOC Platform")
+    target = meta.get("target", "AI-SOC Platform")
     scan_type = meta.get("scan_type", "SIEM + IDS + AI Behavioral Analysis")
     methodology = meta.get("methodology", "Wazuh + Suricata + AI anomaly scoring + analyst triage model")
-    version = meta.get("version", "HQG-SEC-REPORT v2.0")
+    version = meta.get("version", "AI-SOC-SEC-REPORT v2.0")
     scan_date = meta.get("scan_date", now)
 
     counts = Counter(f["severity"] for f in findings)
@@ -375,7 +375,7 @@ def generate_security_report_html(findings: list[dict], meta: dict[str, Any] | N
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>HQG Security Intelligence Report</title>
+    <title>AI-SOC Security Intelligence Report</title>
   <style>
     :root {{
       --bg:#070b12; --bg-soft:#0d1320; --panel:#111a2b; --text:#d7e2ff; --muted:#8ea3c9; --line:#21304c;
@@ -436,7 +436,7 @@ def generate_security_report_html(findings: list[dict], meta: dict[str, Any] | N
     </aside>
     <main class="main">
       <section class="hero" id="executive">
-        <h2>HQG Security Intelligence Report</h2>
+        <h2>AI-SOC Security Intelligence Report</h2>
         <p class="muted">Decision-support intelligence report for SOC leadership and engineering action.</p>
         <div class="hero-grid">
           <div class="kv"><div class="k">Target</div><div class="v">{_esc(target)}</div></div>

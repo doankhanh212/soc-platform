@@ -11,10 +11,10 @@ router = APIRouter(prefix="/api/reports", tags=["reports"])
 
 @router.get("/security-intelligence", response_class=HTMLResponse)
 async def security_intelligence_report(
-    target: str = Query("HQG SOC Platform"),
+    target: str = Query("AI-SOC Platform"),
     scan_type: str = Query("SIEM + IDS + AI Behavioral Analysis"),
     methodology: str = Query("Wazuh + Suricata + AI anomaly scoring + analyst triage model"),
-    version: str = Query("HQG-SEC-REPORT v2.0"),
+    version: str = Query("AI-SOC-SEC-REPORT v2.0"),
     hours: int = Query(24, ge=1, le=168),
 ):
     # Current data services are 24h-centric; keeping the param for API contract.
